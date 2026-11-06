@@ -202,7 +202,6 @@
   <section class="tab admin-only" id="equipmentAdmin">
    <div class="top"><div><h2>Admin — Equipment Management</h2><p class="muted">จัดการรายการอุปกรณ์แต่ละจุดและกำหนดชนิดช่องกรอกได้ โดยไม่ต้องแก้โค้ด</p></div></div>
 
-   <div class="card section"><div class="top"><h3>รายการอุปกรณ์ในระบบ</h3><label class="field no-print">กรองตามจุด<select id="eqAdminFilter"><option value="all">ทุกตำแหน่ง</option></select></label></div><div id="eqAdminList"></div></div>
    <form class="card section eq-admin-editor" id="eqAdminForm"><div class="eq-admin-form-title"><h3 id="eqAdminHeading">เพิ่มรายการอุปกรณ์</h3><span class="eq-admin-hint">กรอกข้อมูลหลักก่อน แล้วบันทึกได้เลย</span></div><div class="grid-form">
     <label class="field">จุดปฏิบัติงาน<select id="eqAdminStation" required></select></label>
     <label class="field">ชื่ออุปกรณ์<input id="eqAdminName" maxlength="240" required></label>
@@ -214,6 +213,8 @@
     <label class="field"><span><input type="checkbox" id="eqAdminPlaceholder"> เป็นหัวข้อรอรายละเอียด (ไม่นับในการ OK)</span></label>
    </div><details class="eq-admin-advanced" id="eqAdminAdvanced"><summary>ตั้งค่าเพิ่มเติม <span>ตัวเลือก / ช่องพิเศษ / หมายเหตุ / ลำดับ</span></summary><div class="grid-form"><label class="field">กระเป๋า/กลุ่ม<input id="eqAdminGroup" placeholder="กระเป๋า A / C"></label><label class="field">ตัวเลือกเพิ่มเติม (คั่นด้วย ,)<input id="eqAdminChoices" placeholder="พอใช้, ไม่พอใช้"></label><label class="field">ลำดับแสดง<input id="eqAdminOrder" type="number" value="1000"></label><label class="field wide">ช่องกรอกเพิ่มเติม (JSON Array เช่น รหัสกล่อง+วันหมดอายุ)<textarea id="eqAdminExtra" rows="3">[]</textarea></label><label class="field wide">คำแนะนำรายการ<textarea id="eqAdminGuidance" rows="2"></textarea></label></div></details><p class="muted">รายการที่มีประวัติ OK จะลบถาวรไม่ได้ ให้ปิดใช้งานแทน เพื่อรักษาประวัติผลตรวจเดิม · Checklist ที่เริ่มตรวจแล้วจะใช้รายการแม่แบบตามตอนเริ่มเวร</p>
    <div class="row no-print"><button class="btn primary" type="submit">บันทึกรายการ</button><button class="btn" id="eqAdminReset" type="button">ล้างฟอร์ม / เพิ่มใหม่</button></div></form>
+
+   <div class="card section"><div class="top"><h3>รายการอุปกรณ์ในระบบ</h3><label class="field no-print">กรองตามจุด<select id="eqAdminFilter"><option value="all">ทุกตำแหน่ง</option></select></label></div><div id="eqAdminList"></div></div>
   </section>
  </div>
 </main>
