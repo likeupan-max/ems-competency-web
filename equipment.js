@@ -139,17 +139,16 @@
       let hdr='';if(lastGroup!==category){lastGroup=category;hdr=`<tr class="eq-group"><td colspan="3">${escapeHTML(category)}</td></tr>`;}
       return hdr+`<tr data-eq-row="${escAttr(r.id)}"><td class="eq-item-name">${escapeHTML(r.snap.name)}<small>${r.snap.required_qty!=null?'ต้องมี '+escapeHTML(r.snap.required_qty)+' '+escapeHTML(r.snap.unit||''):''}</small></td>
         <td class="eq-item-form">${inputWidget(r.snap,r.answer,r.id,!canEdit)}</td>
-        <td><textarea class="eq-note" rows="2" maxlength="2000" placeholder="หมายเหตุ (ถ้ามี)" ${!canEdit?'disabled':''}>${escapeHTML(r.remark)}</textarea>
+        <td><textarea class="eq-note" rows="2" maxlength="2000" placeholder="หมายเหตุ (ไม่บังคับ)" ${!canEdit?'disabled':''}>${escapeHTML(r.remark)}</textarea>
         ${r.stored&&r.stored.updated_by_name?`<small>แก้ไข: ${escapeHTML(r.stored.updated_by_name)}<br>${escapeHTML(timeThai(r.stored.updated_at))}</small>`:''}</td></tr>`;
     }).join('');
-    const owner=selectedCheck?`<p class="muted">ผู้เริ่มตรวจ: ${escapeHTML(selectedCheck.checked_by_name)} · ${escapeHTML(timeThai(selectedCheck.created_at))}<br>ผู้ยืนยัน: ${escapeHTML(selectedCheck.submitted_by_name||'ยังไม่มีผู้ยืนยันผล')} ${selectedCheck.submitted_at?'· '+escapeHTML(timeThai(selectedCheck.submitted_at)):''}</p>`:'';
-    $e('eqCheckBody').innerHTML=`<div class="card section"><div class="top"><div><h3>${escapeHTML(title)}</h3><p class="muted">${active?'กำลังอยู่ในเวลาเวร':'อยู่นอกเวลาเวร — อ่านอย่างเดียว'} · ${selectedCheck?selectedCheck.status==='submitted'?'ยืนยันผลแล้ว':'ฉบับร่าง':'พร้อมกรอก (ยังไม่บันทึก)'}</p></div><span class="eq-chip ${completed===rows.length&&rows.length?'eq-good':'eq-pending'}">กรอกครบ ${completed}/${rows.length}</span></div>
+    const owner=selectedCheck?`<p class="muted">ผู้ตรวจ: ${escapeHTML(selectedCheck.checked_by_name||'—')} · เริ่ม ${escapeHTML(timeThai(selectedCheck.created_at))}<br>${selectedCheck.status==='submitted'?'ผู้บันทึกผล OK':'ผู้บันทึกข้อมูลระหว่างตรวจ'}: ${escapeHTML(selectedCheck.submitted_by_name||selectedCheck.checked_by_name||selectedCheck.updated_by_name||'—')} · ${selectedCheck.submitted_at?'บันทึกครบ '+escapeHTML(timeThai(selectedCheck.submitted_at)):'ยังไม่ครบ · '+escapeHTML(timeThai(selectedCheck.updated_at||selectedCheck.created_at))}${selectedCheck.updated_by_name?'<br>แก้ไขล่าสุด: '+escapeHTML(selectedCheck.updated_by_name)+' · '+escapeHTML(timeThai(selectedCheck.updated_at)):''}</p>`:'';
+    $e('eqCheckBody').innerHTML=`<div class="card section"><div class="top"><div><h3>${escapeHTML(title)}</h3><p class="muted">${active?'กำลังอยู่ในเวลาเวร':'อยู่นอกเวลาเวร — อ่านอย่างเดียว'} · ${selectedCheck?selectedCheck.status==='submitted'?'บันทึกผล OK แล้ว':'กำลังตรวจ / ยังไม่ครบ':'พร้อมกรอก (ยังไม่บันทึก)'}</p></div><span class="eq-chip ${completed===rows.length&&rows.length?'eq-good':'eq-pending'}">กรอกครบ ${completed}/${rows.length}</span></div>
       ${rows.length?`<div class="tablewrap eq-table-wrap"><table class="eq-form-table"><thead><tr><th>รายการอุปกรณ์</th><th>ข้อมูลที่ต้อง OK</th><th>หมายเหตุ</th></tr></thead><tbody>${body}</tbody></table></div>`:'<p>ไม่มีรายการอุปกรณ์ที่เปิดใช้งาน กรุณาให้ Admin กำหนดรายการก่อน</p>'}
       <div class="field section"><label for="eqOverallRemark">หมายเหตุรวมประจำเวร</label><textarea id="eqOverallRemark" maxlength="2000" rows="2" ${!canEdit?'disabled':''}>${escapeHTML(selectedCheck?.overall_remark||'')}</textarea></div>
-      ${owner}<div class="row no-print eq-check-actions">${canEdit&&rows.length?'<button class="btn" type="button" id="eqSaveDraftBtn">บันทึกข้อมูล</button><button class="btn primary" type="button" id="eqSubmitBtn">ยืนยันผล OK</button>':''}
+      ${owner}<div class="row no-print eq-check-actions">${canEdit&&rows.length?'<button class="btn primary" type="button" id="eqSaveBtn">บันทึก</button>':''}
       <button class="btn" type="button" id="eqPrintCheckBtn">⎙ พิมพ์ Checklist / PDF</button></div></div>`;
-    $e('eqSaveDraftBtn')?.addEventListener('click',()=>saveChecklist(false).catch(error));
-    $e('eqSubmitBtn')?.addEventListener('click',()=>saveChecklist(true).catch(error));
+    $e('eqSaveBtn')?.addEventListener('click',()=>saveChecklist().catch(error));
     $e('eqPrintCheckBtn')?.addEventListener('click',()=>printEquipment('check'));
     $e('eqCheckBody').querySelectorAll('[data-eq-row]').forEach(row=>row.addEventListener('input',()=>updateStock(row)));
     $e('eqCheckBody').querySelectorAll('[data-eq-row]').forEach(row=>updateStock(row));
@@ -216,17 +215,17 @@
     if(t==='stock'){
       const op=ans?.opening,cl=ans?.closing,rec=ans?.received??0;
       if(op===''||cl===''||op==null||cl==null||Number(op)<0||Number(cl)<0||Number(rec)<0||!Number.isFinite(Number(op))||!Number.isFinite(Number(cl))||Number(cl)>Number(op)+Number(rec))return false;
-    }else if(t==='status'){if(!five.includes(v)||(v!==five[0]&&!remark?.trim()))return false;}
-    else if(t==='binary'){if(!(snap.options||[]).includes(v)||(v==='ไม่พอใช้'&&!remark?.trim()))return false;}
+    }else if(t==='status'){if(!five.includes(v))return false;}
+    else if(t==='binary'){if(!(snap.options||[]).includes(v))return false;}
     else if(t==='number'){if(v===''||!Number.isFinite(Number(v))||Number(v)<0)return false;}
     else if(!v)return false;
     return (snap.extra_fields||[]).every(f=>!f.required||String(ans?.fields?.[f.key]??'').trim());
   }
   function hasInput(answer){if(!answer)return false;if(typeof answer.value==='string')return answer.value!=='';return answer.opening!==''||answer.closing!=='';}
-  async function saveChecklist(submit){
+  async function saveChecklist(){
     if(saveBusy)return;
     saveBusy=true;
-    const buttons=Array.from($e('eqCheckBody').querySelectorAll('#eqSaveDraftBtn,#eqSubmitBtn'));
+    const buttons=Array.from($e('eqCheckBody').querySelectorAll('#eqSaveBtn'));
     buttons.forEach(b=>b.disabled=true);
     try{
       if(!selectedCheck){
@@ -247,15 +246,20 @@
         changes.push({entry_id:e.id,...v});
       }
     }
-    if(submit&&complete!==selectedEntries.length){throw Error(`กรอกข้อมูลยังไม่ครบ (${complete}/${selectedEntries.length}) กรุณาตรวจสอบรายการและหมายเหตุปัญหา`);}
+    // One-button workflow: save incomplete work as a draft; automatically mark complete when every item has its required answer.
+    // Remarks are always optional. Other item-specific mandatory fields remain required.
+    const allComplete=selectedEntries.length>0 && complete===selectedEntries.length;
+    if(selectedCheck.status==='submitted'&&!allComplete){
+      throw Error(`ข้อมูลที่บันทึกครบแล้วต้องไม่เว้นช่องบังคับ (${complete}/${selectedEntries.length})`);
+    }
     if(changes.length){const {error:err}=await db().rpc('ems_equipment_save_entries',{p_check_id:selectedCheck.id,p_entries:changes});if(err)throw err;}
     const remark=$e('eqOverallRemark').value.trim();
-    if(submit||remark!==selectedCheck.overall_remark){
-      const patch={overall_remark:remark};if(submit)patch.status='submitted';
+    if(allComplete||remark!==selectedCheck.overall_remark){
+      const patch={overall_remark:remark};if(allComplete)patch.status='submitted';
       const {error:err}=await db().from('equipment_checks').update(patch).eq('id',selectedCheck.id);
       if(err)throw err;
     }
-      notify(submit?'ยืนยันผล OK สำเร็จ พร้อมชื่อผู้ OK และเวลาจาก Server':'บันทึกข้อมูลแล้ว');
+      notify(allComplete?'บันทึกผล OK เรียบร้อยแล้ว':'บันทึกข้อมูลแล้ว (ยังกรอกไม่ครบ '+complete+'/'+selectedEntries.length+' รายการ)');
       await Promise.all([loadChecklist(),loadDashboard()]);
     }finally{
       saveBusy=false;
@@ -306,11 +310,14 @@
           const e=r.values[shift];if(!e)return '<td><span class="eq-chip eq-pending">รอตรวจ</span></td>';
           return `<td>${renderAmount(e.item_snapshot,e.answer)}${e.remark?`<div class="eq-remark">หมายเหตุ: ${escapeHTML(e.remark)}</div>`:''}${hasInput(e.answer)||e.remark?`<small>${escapeHTML(timeThai(e.updated_at))}${e.updated_by_name?' · '+escapeHTML(e.updated_by_name):''}</small>`:''}</td>`;
         }).join('')}</tr>`).join('');
-      const footer=`<tr class="eq-check-footer"><td>ผู้ OK / เวลา</td>${['night','morning','evening'].map(shift=>{
+      const footer=`<tr class="eq-check-footer"><td>ผู้ตรวจ / ผู้ OK · เวลา</td>${['night','morning','evening'].map(shift=>{
         if(!station.shifts.includes(shift))return '<td>N/A</td>';
         const c=maps[shift];
-        if(!c)return '<td>ยังไม่มีผู้ยืนยันผล</td>';
-        return `<td><b>${c.status==='submitted'?escapeHTML(c.submitted_by_name||c.checked_by_name):'ยังไม่มีผู้ยืนยันผล (Draft)'}</b><small>${c.submitted_at?escapeHTML(timeThai(c.submitted_at)):'—'}<br>แก้ไขล่าสุด: ${escapeHTML(c.updated_by_name||c.checked_by_name)} ${escapeHTML(timeThai(c.updated_at))}</small>${c.overall_remark?`<div class="eq-remark">หมายเหตุเวร: ${escapeHTML(c.overall_remark)}</div>`:''}</td>`;
+        if(!c)return '<td><span class="eq-chip eq-pending">ยังไม่มีผู้ตรวจ</span></td>';
+        const saved=c.status==='submitted';
+        const person=c.submitted_by_name||c.checked_by_name||c.updated_by_name||'—';
+        const when=c.submitted_at||c.updated_at||c.created_at;
+        return `<td><b>${escapeHTML(person)}</b><small>${saved?'บันทึกผล OK แล้ว':'กำลังตรวจ / ยังไม่ครบ'} · ${escapeHTML(timeThai(when))}<br>แก้ไขล่าสุด: ${escapeHTML(c.updated_by_name||c.checked_by_name||'—')} ${escapeHTML(timeThai(c.updated_at))}</small>${c.overall_remark?`<div class="eq-remark">หมายเหตุเวร: ${escapeHTML(c.overall_remark)}</div>`:''}</td>`;
       }).join('')}</tr>`;
       sections.push(`<section class="card eq-station-section"><div class="top"><h3>${escapeHTML(station.display_name)}</h3><span class="eq-chip eq-neutral">${rows.length} รายการ</span></div><div class="tablewrap eq-table-wrap"><table class="eq-matrix"><thead><tr><th>รายการอุปกรณ์</th><th>ดึก (23:45–08:00)</th><th>เช้า (07:45–16:00)</th><th>บ่าย (15:45–00:00)</th></tr></thead><tbody>${markup||'<tr><td colspan="4">ไม่มีรายการ</td></tr>'}${footer}</tbody></table></div></section>`);
     }
@@ -322,8 +329,8 @@
   }
   function exportDashboard(){if(!currentDashboard)return;
     const {date,checks,entries}=currentDashboard, byId=new Map(checks.map(c=>[c.id,c]));
-    const rows=[['วันที่','จุด','เวร','รายการ','จำนวนต้องมี','ประเภทข้อมูล','ค่าที่บันทึก','หมายเหตุ','ผู้ OK','เวลายืนยัน','แก้ไขล่าสุด','ผู้แก้ไข']];
-    for(const e of entries){const c=byId.get(e.check_id);if(!c)continue;rows.push([date,stations.find(s=>s.code===c.workstation)?.display_name,c.shift,e.item_snapshot.name,e.item_snapshot.required_qty,e.item_snapshot.input_type,JSON.stringify(e.answer||{}),e.remark,c.submitted_by_name||'ยังไม่มีผู้ยืนยัน',timeThai(c.submitted_at),timeThai(e.updated_at),e.updated_by_name]);}
+    const rows=[['วันที่','จุด','เวร','รายการ','จำนวนต้องมี','ประเภทข้อมูล','ค่าที่บันทึก','หมายเหตุ','ผู้ OK','เวลาบันทึก/เริ่มตรวจ','สถานะ','แก้ไขล่าสุด','ผู้แก้ไข']];
+    for(const e of entries){const c=byId.get(e.check_id);if(!c)continue;rows.push([date,stations.find(s=>s.code===c.workstation)?.display_name,c.shift,e.item_snapshot.name,e.item_snapshot.required_qty,e.item_snapshot.input_type,JSON.stringify(e.answer||{}),e.remark,c.submitted_by_name||c.checked_by_name||'—',timeThai(c.submitted_at||c.updated_at||c.created_at),c.status==='submitted'?'บันทึกครบ':'กำลังตรวจ',timeThai(e.updated_at),e.updated_by_name]);}
     csv(rows,`EMS-Equipment-${date}.csv`);
   }
   function printEquipment(mode){
@@ -331,7 +338,7 @@
     let contents='';
     if(mode==='check'){
       const check=selectedCheck,title=`${$e('eqCheckStation').selectedOptions[0]?.text||''} / เวร${labels[$e('eqCheckShift').value]} / ${readableDate($e('eqCheckDate').value)}`;
-      contents=`<h2>Daily Equipment OK — ${escapeHTML(title)}</h2><p>ผู้ OK: ${escapeHTML(check?.submitted_by_name||'ยังไม่มีผู้ยืนยันผล')} · ${escapeHTML(timeThai(check?.submitted_at))}</p><table><thead><tr><th>รายการ</th><th>จำนวนต้องมี</th><th>ผลตรวจ/จำนวน</th><th>หมายเหตุ</th><th>แก้ไขล่าสุด</th></tr></thead><tbody>${selectedEntries.map(e=>`<tr><td>${escapeHTML(e.item_snapshot.name)}</td><td>${escapeHTML(e.item_snapshot.required_qty??'—')}</td><td>${renderAmount(e.item_snapshot,e.answer)}</td><td>${escapeHTML(e.remark)}</td><td>${escapeHTML(timeThai(e.updated_at))}</td></tr>`).join('')}</tbody></table>`;
+      contents=`<h2>Daily Equipment OK — ${escapeHTML(title)}</h2><p>ผู้ตรวจ/ผู้ OK: ${escapeHTML(check?.submitted_by_name||check?.checked_by_name||'ยังไม่มีผู้ตรวจ')} · ${escapeHTML(timeThai(check?.submitted_at||check?.updated_at||check?.created_at))} · ${check?.status==='submitted'?'บันทึกครบ':'กำลังตรวจ'}</p><table><thead><tr><th>รายการ</th><th>จำนวนต้องมี</th><th>ผลตรวจ/จำนวน</th><th>หมายเหตุ</th><th>แก้ไขล่าสุด</th></tr></thead><tbody>${selectedEntries.map(e=>`<tr><td>${escapeHTML(e.item_snapshot.name)}</td><td>${escapeHTML(e.item_snapshot.required_qty??'—')}</td><td>${renderAmount(e.item_snapshot,e.answer)}</td><td>${escapeHTML(e.remark)}</td><td>${escapeHTML(timeThai(e.updated_at))}</td></tr>`).join('')}</tbody></table>`;
     }else{
       contents=`<h2>Equipment Dashboard — ${escapeHTML(readableDate(currentDashboard?.date))}</h2>${$e('eqDashSummary').innerHTML}${$e('eqDashboardBody').innerHTML}`;
     }

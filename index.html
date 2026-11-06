@@ -5,25 +5,6 @@
 <meta name="theme-color" content="#123856"><meta name="referrer" content="strict-origin-when-cross-origin">
 <title>EMS Suandok Competency &amp; Operations Hub</title>
 <style>
-
-/* EMS_EQUIPMENT_FORM_FIRST_FORCE_20261107 */
-#equipmentAdmin.active:not(.hidden):not([hidden]) {
-  display: flex;
-  flex-direction: column;
-}
-
-#equipmentAdmin > .top {
-  order: 0;
-}
-
-#equipmentAdmin > #eqAdminForm {
-  order: 1;
-  margin-top: 0;
-}
-
-#equipmentAdmin > .card.section:not(#eqAdminForm) {
-  order: 2;
-}
 :root{font-family:system-ui,-apple-system,"Noto Sans Thai","Sarabun",sans-serif;color:#23374c;background:#f2f5fa;font-size:15px}*{box-sizing:border-box}body{margin:0}button,input,select,textarea{font:inherit}button{cursor:pointer}a{color:#20668e}header{background:linear-gradient(120deg,#112e49,#176787);color:#fff;padding:18px max(18px,calc((100vw - 1220px)/2));display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}.brand{display:flex;align-items:center;gap:12px}.logo{padding:10px 14px;background:#ffffff1a;border:1px solid #ffffff36;border-radius:13px;font-size:25px}h1{font-size:21px;margin:0}header small{display:block;color:#d1e8f3;margin-top:4px}header .user{color:#e4f2f9;font-size:13px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}nav{background:#e6eef7;border-bottom:1px solid #d0dfea;padding:10px max(18px,calc((100vw - 1220px)/2));display:flex;gap:8px;flex-wrap:wrap}nav button{border:0;background:transparent;padding:10px 13px;border-radius:9px;color:#365770;font-weight:700}nav button.active{background:white;box-shadow:0 2px 8px #11385316;color:#103e60}main{max-width:1220px;margin:0 auto;padding:22px 16px 55px}h2{font-size:24px;color:#163b58;margin:0 0 5px}h3{font-size:17px;color:#264e6d;margin:0 0 12px}p{line-height:1.65}.muted{color:#637c91;font-size:13px}.card{background:white;border:1px solid #dbe5ee;border-radius:14px;padding:19px;box-shadow:0 2px 11px #0a35410b}.section{margin:16px 0}.two{display:grid;grid-template-columns:1fr 1fr;gap:15px}.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:18px 0}.stat .big{font-size:34px;color:#173d5b;font-weight:800;margin:9px 0 3px}.btn{border:1px solid #c6d8e7;background:white;border-radius:9px;color:#205274;font-weight:700;padding:10px 14px}.btn:hover{background:#f0f7fc}.btn.primary{background:#176c90;border-color:#176c90;color:white}.btn.primary:hover{background:#115a7a}.btn.danger{color:#ad2b3b;border-color:#efc6cf}.btn.small{padding:6px 9px;font-size:12px}.btn:disabled{opacity:.55;cursor:not-allowed}.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.between{justify-content:space-between}.pill{display:inline-block;border-radius:99px;background:#e4f2eb;color:#206943;font-size:12px;padding:4px 9px;font-weight:700;white-space:nowrap}.pill.warn{background:#fff0d6;color:#9a6212}.pill.bad{background:#fde8eb;color:#ad3044}.pill.neutral{background:#e9f0f6;color:#516d84}.grid-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.field{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:650;color:#49667d}.field input,.field select,.field textarea{min-width:0;width:100%;padding:11px;border:1px solid #c9d8e5;border-radius:9px;background:white;color:#253d52}.field.wide{grid-column:1/-1}input:focus,select:focus,textarea:focus{outline:2px solid #70b6d8;outline-offset:1px}.tablewrap{max-width:100%;overflow:auto}table{border-collapse:collapse;min-width:640px;width:100%;text-align:left}th,td{border-bottom:1px solid #e5edf3;padding:10px;font-size:13px;vertical-align:middle}th{background:#f4f8fb;font-size:12px;color:#547089}tr:last-child td{border-bottom:0}.empty{padding:20px;color:#778b9e;text-align:center}.top{display:flex;justify-content:space-between;gap:15px;align-items:center;flex-wrap:wrap;margin-bottom:15px}.banner{padding:12px 15px;border-radius:10px;background:#ebf5fa;border:1px solid #cfdfeb;color:#2a617e;font-size:13px;line-height:1.65;margin-bottom:16px}.banner.warn{background:#fff7e6;border-color:#e9d29c;color:#806016}.auth-wrap{max-width:550px;margin:24px auto}.auth-tabs{display:flex;gap:9px;margin-bottom:16px}.auth-tabs button[aria-selected="true"]{background:#176c90;color:white}.hidden,[hidden]{display:none!important}.tab{display:none}.tab.active{display:block}footer{max-width:1220px;margin:0 auto;padding:0 17px 25px;color:#728b9d;font-size:12px}.loading{padding:40px;text-align:center;color:#4f6c83}.mini-input{width:88px;padding:5px;border-radius:7px;border:1px solid #ccdae6}.mini-select{max-width:120px;padding:5px;border-radius:7px;border:1px solid #ccdae6}.actions{display:flex;gap:5px;flex-wrap:wrap}.right{text-align:right}.error{color:#ac2f46;font-size:13px}.narrow{max-width:470px;margin:0 auto}.print-header{display:none}.print-scope{display:block}#toast{display:none;position:fixed;bottom:18px;right:18px;max-width:min(460px,90vw);border-radius:11px;padding:13px 17px;background:#234b68;color:white;box-shadow:0 9px 28px #18334955;z-index:100;line-height:1.5}
 @media(max-width:920px){.stats{grid-template-columns:repeat(2,1fr)}.two{grid-template-columns:1fr}.grid-form{grid-template-columns:repeat(2,1fr)}}@media(max-width:600px){header h1{font-size:17px}nav{padding:9px}nav button{padding:8px 9px;font-size:12px}main{padding:15px 12px 35px}h2{font-size:21px}.stats{gap:8px}.card{padding:14px}.stat .big{font-size:28px}.grid-form{grid-template-columns:1fr}}
 @media print{body[data-print="dashboard"] #dashboard,body[data-print="certificates"] #certificates,body[data-print="procedures"] #procedures,body[data-print="members"] #members{display:block!important}@page{size:A4 landscape;margin:12mm}body{background:#fff;color:#000;font-size:11px}header,nav,.no-print,footer,#toast,.auth-wrap,.banner,.controls{display:none!important}main{max-width:none;padding:0}.tab{display:none!important}.print-scope{display:block!important}.print-header{display:block!important;margin-bottom:12px}.card{box-shadow:none;border:1px solid #bbc2c8;break-inside:avoid}.stats{grid-template-columns:repeat(4,1fr)}.two{grid-template-columns:1fr 1fr}table{min-width:0}td,th{font-size:10px;padding:6px}.pill{color:black!important;background:white!important;border:1px solid #aaa}}
@@ -122,6 +103,25 @@
 @media(max-width:920px){#settings #addProcedureForm{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){#settings #addProcedureForm{grid-template-columns:1fr}}
 
+
+/* EMS_EQUIPMENT_FORM_FIRST_FORCE_20261107
+   Visual ordering only: do not alter permissions, data or form handlers.
+   Keep :not(.hidden) and no !important on display so role-based hiding works. */
+#equipmentAdmin.active:not(.hidden):not([hidden]) {
+  display: flex;
+  flex-direction: column;
+}
+#equipmentAdmin > .top {
+  order: 0;
+}
+#equipmentAdmin > #eqAdminForm {
+  order: 1;
+  margin-top: 0;
+}
+#equipmentAdmin > .card.section:not(#eqAdminForm) {
+  order: 2;
+}
+
 </style>
 </head>
 <body>
@@ -208,7 +208,7 @@
     <label class="field">วันที่ของเวร<input id="eqCheckDate" type="date" required></label>
     <label class="field">เวร<select id="eqCheckShift"><option value="night">เวรดึก</option><option value="morning">เวรเช้า</option><option value="evening">เวรบ่าย</option></select></label>
     <label class="field">จุดที่ปฏิบัติงาน<select id="eqCheckStation"></select></label>
-   </div><p class="muted eq-quick-hint">เลือกสถานะและกรอกหมายเหตุได้ทันที จากนั้นกด “บันทึกข้อมูล” หรือ “ยืนยันผล OK” ระบบจะสร้าง Checklist ให้โดยอัตโนมัติเมื่อบันทึกครั้งแรก</p><p class="muted">ดึก: 23:45 ของวันก่อน–08:00 · เช้า: 07:45–16:00 · บ่าย: 15:45–00:00 (เวลาไทย) · ไม่สามารถบันทึกหรือแก้ย้อนหลังหลังหมดเวร</p></div>
+   </div><p class="muted eq-quick-hint">เลือกสถานะอุปกรณ์แล้วกด “บันทึก” เพียงครั้งเดียว หมายเหตุไม่บังคับ แม้อุปกรณ์มีปัญหา · หากกรอกไม่ครบ ระบบจะเก็บเป็นรายการที่กำลังตรวจ</p><p class="muted">ดึก: 23:45 ของวันก่อน–08:00 · เช้า: 07:45–16:00 · บ่าย: 15:45–00:00 (เวลาไทย) · ไม่สามารถบันทึกหรือแก้ย้อนหลังหลังหมดเวร</p></div>
    <div id="eqCheckBody"><div class="card">กำลังโหลด Checklist...</div></div>
   </section>
   <section class="tab" id="equipmentDashboard">
@@ -216,7 +216,7 @@
     <div class="row no-print"><button class="btn" id="eqDashRefresh" type="button">↻ รีเฟรช</button><button class="btn" id="eqDashExport" type="button">↓ CSV</button><button class="btn primary" id="eqDashPrint" type="button">⎙ Print / PDF</button></div></div>
    <div class="card section row no-print"><button class="btn small" id="eqDashPrev" type="button">‹ วันก่อน</button><label class="field">วันที่ตรวจสอบ<input id="eqDashDate" type="date"></label><button class="btn small" id="eqDashNext" type="button">วันถัดไป ›</button><button class="btn small" id="eqDashToday" type="button">วันนี้</button></div>
    <h3 id="eqDashTitle">ผล OK อุปกรณ์รายวัน</h3><div id="eqDashSummary"></div><div id="eqDashboardBody"><div class="card">กำลังโหลด Dashboard...</div></div>
-   <p class="muted">เปอร์เซ็นต์หมายถึงจำนวนจุด-เวรที่กดยืนยัน Checklist ครบแล้ว ไม่ใช่เปอร์เซ็นต์อุปกรณ์พร้อมใช้งาน · Dressing Wound Room ตรวจเฉพาะเวรเช้า</p>
+   <p class="muted">เปอร์เซ็นต์หมายถึงจำนวนจุด-เวรที่บันทึก Checklist ครบแล้ว ไม่ใช่เปอร์เซ็นต์อุปกรณ์พร้อมใช้งาน · Dressing Wound Room ตรวจเฉพาะเวรเช้า</p>
   </section>
   <section class="tab admin-only" id="equipmentAdmin">
    <div class="top"><div><h2>Admin — Equipment Management</h2><p class="muted">จัดการรายการอุปกรณ์แต่ละจุดและกำหนดชนิดช่องกรอกได้ โดยไม่ต้องแก้โค้ด</p></div></div>
@@ -243,5 +243,5 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="./config.js"></script>
 <script src="./app.js?v=equipment-20261106"></script>
-<script src="./equipment.js?v=admin-quick-ok-20261106"></script>
+<script src="./equipment.js?v=one-save-optional-notes-20261107"></script>
 </body></html>
