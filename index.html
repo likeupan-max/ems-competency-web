@@ -55,6 +55,39 @@
  body[data-print="equipment"] #eqPrintLayout .eq-print-header h1{color:black;font-size:18px}
  body[data-print="equipment"] #eqPrintLayout .eq-print-header p{font-size:11px}
 }
+
+/* Equipment Admin UI refresh — presentation only, existing IDs and submit logic retained */
+#equipmentAdmin{max-width:1180px;margin:auto}
+#equipmentAdmin>.top{margin-bottom:20px}
+#equipmentAdmin>.card{box-shadow:0 4px 18px rgba(16,51,80,.045);border:1px solid #dbe5ee}
+#equipmentAdmin .eq-admin-editor{margin-top:22px}
+#equipmentAdmin .eq-admin-form-title{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-bottom:14px;margin-bottom:18px;border-bottom:1px solid #e6edf4}
+#equipmentAdmin .eq-admin-form-title h3{margin:0}
+#equipmentAdmin .eq-admin-hint{font-size:12px;color:#698296}
+#equipmentAdmin .grid-form{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+#equipmentAdmin .field{gap:7px}
+#equipmentAdmin .field input:not([type=checkbox]),#equipmentAdmin .field select,#equipmentAdmin .field textarea{min-height:44px}
+#equipmentAdmin .field:has(input[type=checkbox]){background:#f5f8fb;border:1px solid #e4ecf3;border-radius:10px;padding:12px}
+#equipmentAdmin .field:has(input[type=checkbox]) span{display:flex;align-items:center;gap:9px}
+#equipmentAdmin .field input[type=checkbox]{width:18px;height:18px;accent-color:#176c90}
+#equipmentAdmin .eq-admin-advanced{border:1px solid #dbe5ee;border-radius:12px;margin:20px 0 16px;background:#fafcfe}
+#equipmentAdmin .eq-admin-advanced summary{padding:15px 16px;cursor:pointer;color:#205274;font-weight:700;list-style-position:inside}
+#equipmentAdmin .eq-admin-advanced summary span{font-weight:400;font-size:12px;color:#748a9a;margin-left:8px}
+#equipmentAdmin .eq-admin-advanced[open] summary{border-bottom:1px solid #e5edf3}
+#equipmentAdmin .eq-admin-advanced>.grid-form{padding:16px}
+#equipmentAdmin #eqAdminExtra{font-family:ui-monospace,SFMono-Regular,monospace;font-size:13px;min-height:75px}
+#equipmentAdmin #eqAdminList .tablewrap{border:1px solid #e6edf4;border-radius:10px}
+#equipmentAdmin #eqAdminList table{min-width:750px}
+#equipmentAdmin #eqAdminList tbody tr:hover{background:#f5faff}
+#equipmentAdmin .eq-admin-editor>.row:last-child{padding-top:16px;border-top:1px solid #e6edf4}
+@media(max-width:680px){#equipmentAdmin .grid-form{grid-template-columns:1fr}#equipmentAdmin .eq-admin-advanced summary span{display:block;margin:5px 0 0}#equipmentAdmin .eq-admin-editor>.row:last-child .btn{flex:1}}
+
+
+/* Quick OK: status selection starts immediately; no extra start button. */
+#equipmentCheck .eq-quick-hint{background:#eff8ff;color:#1b5b7b;border:1px solid #cfe5f6;padding:10px 13px;border-radius:10px;line-height:1.7}
+#equipmentCheck .eq-check-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;position:sticky;bottom:0;background:#fff;padding:12px 0;border-top:1px solid #e4edf3;z-index:3}
+#equipmentCheck .eq-check-actions .btn{min-height:43px}
+@media(max-width:720px){#equipmentCheck .eq-check-actions .btn{flex:1;min-width:120px}#equipmentCheck .eq-check-actions{padding:10px 6px;box-shadow:0 -3px 10px rgba(0,0,0,.04)}}
 </style>
 </head>
 <body>
@@ -130,12 +163,12 @@
   </section>
 
   <section class="tab" id="equipmentCheck">
-   <div class="top"><div><h2>Daily Equipment OK</h2><p class="muted">เลือกวันที่ เวร และจุดตรวจ แล้วบันทึกสถานะและหมายเหตุทุกรายการ</p></div></div>
+   <div class="top"><div><h2>Daily Equipment OK</h2><p class="muted">เลือกวันที่ เวร และจุดตรวจ แล้วเลือกสถานะอุปกรณ์ได้ทันที ไม่ต้องกดเริ่ม OK</p></div></div>
    <div class="card section no-print"><div class="grid-form">
     <label class="field">วันที่ของเวร<input id="eqCheckDate" type="date" required></label>
     <label class="field">เวร<select id="eqCheckShift"><option value="night">เวรดึก</option><option value="morning">เวรเช้า</option><option value="evening">เวรบ่าย</option></select></label>
     <label class="field">จุดที่ปฏิบัติงาน<select id="eqCheckStation"></select></label>
-   </div><p class="muted">ดึก: 23:45 ของวันก่อน–08:00 · เช้า: 07:45–16:00 · บ่าย: 15:45–00:00 (เวลาไทย) · ไม่สามารถบันทึกหรือแก้ย้อนหลังหลังหมดเวร</p></div>
+   </div><p class="muted eq-quick-hint">เลือกสถานะและกรอกหมายเหตุได้ทันที จากนั้นกด “บันทึกข้อมูล” หรือ “ยืนยันผล OK” ระบบจะสร้าง Checklist ให้โดยอัตโนมัติเมื่อบันทึกครั้งแรก</p><p class="muted">ดึก: 23:45 ของวันก่อน–08:00 · เช้า: 07:45–16:00 · บ่าย: 15:45–00:00 (เวลาไทย) · ไม่สามารถบันทึกหรือแก้ย้อนหลังหลังหมดเวร</p></div>
    <div id="eqCheckBody"><div class="card">กำลังโหลด Checklist...</div></div>
   </section>
   <section class="tab" id="equipmentDashboard">
@@ -147,23 +180,19 @@
   </section>
   <section class="tab admin-only" id="equipmentAdmin">
    <div class="top"><div><h2>Admin — Equipment Management</h2><p class="muted">จัดการรายการอุปกรณ์แต่ละจุดและกำหนดชนิดช่องกรอกได้ โดยไม่ต้องแก้โค้ด</p></div></div>
-   <form class="card section" id="eqAdminForm"><h3 id="eqAdminHeading">เพิ่มรายการอุปกรณ์</h3><div class="grid-form">
+
+   <div class="card section"><div class="top"><h3>รายการอุปกรณ์ในระบบ</h3><label class="field no-print">กรองตามจุด<select id="eqAdminFilter"><option value="all">ทุกตำแหน่ง</option></select></label></div><div id="eqAdminList"></div></div>
+   <form class="card section eq-admin-editor" id="eqAdminForm"><div class="eq-admin-form-title"><h3 id="eqAdminHeading">เพิ่มรายการอุปกรณ์</h3><span class="eq-admin-hint">กรอกข้อมูลหลักก่อน แล้วบันทึกได้เลย</span></div><div class="grid-form">
     <label class="field">จุดปฏิบัติงาน<select id="eqAdminStation" required></select></label>
     <label class="field">ชื่ออุปกรณ์<input id="eqAdminName" maxlength="240" required></label>
     <label class="field">หมวดหมู่<input id="eqAdminCategory" placeholder="Airway / IV Access / Dressing"></label>
-    <label class="field">กระเป๋า/กลุ่ม<input id="eqAdminGroup" placeholder="กระเป๋า A / C"></label>
     <label class="field">จำนวนที่ต้องมี<input type="number" min="0" step="any" id="eqAdminRequired" placeholder="เว้นว่างได้"></label>
     <label class="field">หน่วย<input id="eqAdminUnit" placeholder="เครื่อง / ชิ้น / ชุด"></label>
     <label class="field">ชนิดช่องกรอก<select id="eqAdminType" required></select></label>
-    <label class="field">ตัวเลือกเพิ่มเติม (คั่นด้วย ,)<input id="eqAdminChoices" placeholder="พอใช้, ไม่พอใช้"></label>
-    <label class="field">ลำดับแสดง<input id="eqAdminOrder" type="number" value="1000"></label>
-    <label class="field wide">ช่องกรอกเพิ่มเติม (JSON Array เช่น รหัสกล่อง+วันหมดอายุ)<textarea id="eqAdminExtra" rows="3">[]</textarea></label>
-    <label class="field wide">คำแนะนำรายการ<textarea id="eqAdminGuidance" rows="2"></textarea></label>
     <label class="field"><span><input type="checkbox" id="eqAdminActive" checked> เปิดใช้งานรายการ</span></label>
     <label class="field"><span><input type="checkbox" id="eqAdminPlaceholder"> เป็นหัวข้อรอรายละเอียด (ไม่นับในการ OK)</span></label>
-   </div><p class="muted">แนะนำให้ปิดใช้งานแทนการลบถาวร เพื่อรักษาประวัติผลตรวจเดิม · Checklist ที่เริ่มตรวจแล้วจะใช้รายการแม่แบบตามตอนเริ่มเวร</p>
+   </div><details class="eq-admin-advanced" id="eqAdminAdvanced"><summary>ตั้งค่าเพิ่มเติม <span>ตัวเลือก / ช่องพิเศษ / หมายเหตุ / ลำดับ</span></summary><div class="grid-form"><label class="field">กระเป๋า/กลุ่ม<input id="eqAdminGroup" placeholder="กระเป๋า A / C"></label><label class="field">ตัวเลือกเพิ่มเติม (คั่นด้วย ,)<input id="eqAdminChoices" placeholder="พอใช้, ไม่พอใช้"></label><label class="field">ลำดับแสดง<input id="eqAdminOrder" type="number" value="1000"></label><label class="field wide">ช่องกรอกเพิ่มเติม (JSON Array เช่น รหัสกล่อง+วันหมดอายุ)<textarea id="eqAdminExtra" rows="3">[]</textarea></label><label class="field wide">คำแนะนำรายการ<textarea id="eqAdminGuidance" rows="2"></textarea></label></div></details><p class="muted">รายการที่มีประวัติ OK จะลบถาวรไม่ได้ ให้ปิดใช้งานแทน เพื่อรักษาประวัติผลตรวจเดิม · Checklist ที่เริ่มตรวจแล้วจะใช้รายการแม่แบบตามตอนเริ่มเวร</p>
    <div class="row no-print"><button class="btn primary" type="submit">บันทึกรายการ</button><button class="btn" id="eqAdminReset" type="button">ล้างฟอร์ม / เพิ่มใหม่</button></div></form>
-   <div class="card section"><div class="top"><h3>รายการอุปกรณ์ในระบบ</h3><label class="field no-print">กรองตามจุด<select id="eqAdminFilter"><option value="all">ทุกตำแหน่ง</option></select></label></div><div id="eqAdminList"></div></div>
   </section>
  </div>
 </main>
@@ -173,5 +202,5 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="./config.js"></script>
 <script src="./app.js?v=equipment-20261106"></script>
-<script src="./equipment.js?v=equipment-20261106"></script>
+<script src="./equipment.js?v=admin-quick-ok-20261106"></script>
 </body></html>

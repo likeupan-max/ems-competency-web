@@ -9,6 +9,7 @@
   const statusClass={'มีครบพร้อมใช้งาน':'eq-good','มีไม่ครบ':'eq-warn','มีไม่พร้อมใช้งาน':'eq-orange','ไม่มี':'eq-bad','ส่งซ่อม':'eq-purple','พอใช้':'eq-good','ไม่พอใช้':'eq-bad'};
   const stationCodes={Triage:'triage','Referral Center':'referral','Active Refer':'active_refer',RRT:'rrt','Dressing Wound Room':'dressing'};
   let stations=[],items=[],selectedCheck=null,selectedEntries=[],currentDashboard=null,editingItemId=null,channel=null,refreshTimer=null,initDone=false;
+  let checklistLoadSeq=0,saveBusy=false;
   const notify=(message,error=false)=>{ if(typeof toast==='function')toast(message,error);else alert(message); };
   const db=()=> typeof sb!=='undefined'?sb:null;
   const authorized=()=> typeof mine!=='undefined' && mine?.approval_status==='approved';
@@ -49,7 +50,9 @@
   async function reloadTemplates(){
     const [ws,it]=await Promise.all([db().from('equipment_workstations').select('*').order('sort_order'),getRows('equipment_items',(a,b)=>db().from('equipment_items').select('*').order('sort_order').range(a,b))]);
     if(ws.error)throw ws.error;stations=ws.data||[];items=it;
+    const previousStation=$e('eqCheckStation').value;
     $e('eqCheckStation').innerHTML=stations.map(s=>`<option value="${escAttr(s.code)}">${escapeHTML(s.display_name)}</option>`).join('');
+    if(stations.some(s=>s.code===previousStation))$e('eqCheckStation').value=previousStation;
     $e('eqAdminStation').innerHTML=stations.map(s=>`<option value="${escAttr(s.code)}">${escapeHTML(s.display_name)}</option>`).join('');
     const old=$e('eqCheckShift').value||'morning';$e('eqCheckShift').value=old;
     updateAllowedShifts();renderAdmin();
@@ -85,12 +88,17 @@
   async function findCheck(date,ws,shift){const {data,error:err}=await db().from('equipment_checks').select('*').eq('shift_date',date).eq('workstation',ws).eq('shift',shift).maybeSingle();if(err)throw err;return data;}
   async function checkEntries(id){return getRows('equipment_entries',(a,b)=>db().from('equipment_entries').select('*').eq('check_id',id).order('id').range(a,b));}
   async function loadChecklist(){
+    const request=++checklistLoadSeq;
     if(!authorized()||!stations.length)return;
     const date=$e('eqCheckDate').value,ws=$e('eqCheckStation').value,shift=$e('eqCheckShift').value;
+    selectedCheck=null;selectedEntries=[];
     if(!date||!ws)return;
-    if(!isAvailable(ws,shift)){selectedCheck=null;selectedEntries=[];$e('eqCheckBody').innerHTML='<div class="banner">เวรนี้ไม่ต้อง OK อุปกรณ์ของจุดนี้</div>';return;}
-    selectedCheck=await findCheck(date,ws,shift);
-    selectedEntries=selectedCheck?await checkEntries(selectedCheck.id):[];
+    if(!isAvailable(ws,shift)){$e('eqCheckBody').innerHTML='<div class="banner">เวรนี้ไม่ต้อง OK อุปกรณ์ของจุดนี้</div>';return;}
+    $e('eqCheckBody').innerHTML='<div class="card section">กำลังเปิดรายการอุปกรณ์...</div>';
+    const check=await findCheck(date,ws,shift);
+    const entries=check?await checkEntries(check.id):[];
+    if(request!==checklistLoadSeq)return;
+    selectedCheck=check;selectedEntries=entries;
     renderChecklist();
   }
   function inputWidget(snap,ans,entryId,readonly){
@@ -130,18 +138,16 @@
       const category=[r.snap.bag_group,r.snap.category].filter(Boolean).join(' / ')||'อุปกรณ์';
       let hdr='';if(lastGroup!==category){lastGroup=category;hdr=`<tr class="eq-group"><td colspan="3">${escapeHTML(category)}</td></tr>`;}
       return hdr+`<tr data-eq-row="${escAttr(r.id)}"><td class="eq-item-name">${escapeHTML(r.snap.name)}<small>${r.snap.required_qty!=null?'ต้องมี '+escapeHTML(r.snap.required_qty)+' '+escapeHTML(r.snap.unit||''):''}</small></td>
-        <td class="eq-item-form">${inputWidget(r.snap,r.answer,r.id,!canEdit||!selectedCheck)}</td>
-        <td><textarea class="eq-note" rows="2" maxlength="2000" placeholder="หมายเหตุ (ถ้ามี)" ${!canEdit||!selectedCheck?'disabled':''}>${escapeHTML(r.remark)}</textarea>
+        <td class="eq-item-form">${inputWidget(r.snap,r.answer,r.id,!canEdit)}</td>
+        <td><textarea class="eq-note" rows="2" maxlength="2000" placeholder="หมายเหตุ (ถ้ามี)" ${!canEdit?'disabled':''}>${escapeHTML(r.remark)}</textarea>
         ${r.stored&&r.stored.updated_by_name?`<small>แก้ไข: ${escapeHTML(r.stored.updated_by_name)}<br>${escapeHTML(timeThai(r.stored.updated_at))}</small>`:''}</td></tr>`;
     }).join('');
     const owner=selectedCheck?`<p class="muted">ผู้เริ่มตรวจ: ${escapeHTML(selectedCheck.checked_by_name)} · ${escapeHTML(timeThai(selectedCheck.created_at))}<br>ผู้ยืนยัน: ${escapeHTML(selectedCheck.submitted_by_name||'ยังไม่มีผู้ยืนยันผล')} ${selectedCheck.submitted_at?'· '+escapeHTML(timeThai(selectedCheck.submitted_at)):''}</p>`:'';
-    $e('eqCheckBody').innerHTML=`<div class="card section"><div class="top"><div><h3>${escapeHTML(title)}</h3><p class="muted">${active?'กำลังอยู่ในเวลาเวร':'อยู่นอกเวลาเวร — อ่านอย่างเดียว'} · ${selectedCheck?selectedCheck.status==='submitted'?'ยืนยันผลแล้ว':'ฉบับร่าง':'ยังไม่ได้เริ่มบันทึก'}</p></div><span class="eq-chip ${completed===rows.length&&rows.length?'eq-good':'eq-pending'}">กรอกครบ ${completed}/${rows.length}</span></div>
+    $e('eqCheckBody').innerHTML=`<div class="card section"><div class="top"><div><h3>${escapeHTML(title)}</h3><p class="muted">${active?'กำลังอยู่ในเวลาเวร':'อยู่นอกเวลาเวร — อ่านอย่างเดียว'} · ${selectedCheck?selectedCheck.status==='submitted'?'ยืนยันผลแล้ว':'ฉบับร่าง':'พร้อมกรอก (ยังไม่บันทึก)'}</p></div><span class="eq-chip ${completed===rows.length&&rows.length?'eq-good':'eq-pending'}">กรอกครบ ${completed}/${rows.length}</span></div>
       ${rows.length?`<div class="tablewrap eq-table-wrap"><table class="eq-form-table"><thead><tr><th>รายการอุปกรณ์</th><th>ข้อมูลที่ต้อง OK</th><th>หมายเหตุ</th></tr></thead><tbody>${body}</tbody></table></div>`:'<p>ไม่มีรายการอุปกรณ์ที่เปิดใช้งาน กรุณาให้ Admin กำหนดรายการก่อน</p>'}
-      <div class="field section"><label for="eqOverallRemark">หมายเหตุรวมประจำเวร</label><textarea id="eqOverallRemark" maxlength="2000" rows="2" ${!canEdit||!selectedCheck?'disabled':''}>${escapeHTML(selectedCheck?.overall_remark||'')}</textarea></div>
-      ${owner}<div class="row no-print">${!selectedCheck&&canEdit&&rows.length?'<button class="btn primary" type="button" id="eqStartBtn">เริ่ม OK อุปกรณ์</button>':''}
-      ${selectedCheck&&canEdit?'<button class="btn" type="button" id="eqSaveDraftBtn">บันทึกข้อมูล</button><button class="btn primary" type="button" id="eqSubmitBtn">ยืนยันผล OK</button>':''}
+      <div class="field section"><label for="eqOverallRemark">หมายเหตุรวมประจำเวร</label><textarea id="eqOverallRemark" maxlength="2000" rows="2" ${!canEdit?'disabled':''}>${escapeHTML(selectedCheck?.overall_remark||'')}</textarea></div>
+      ${owner}<div class="row no-print eq-check-actions">${canEdit&&rows.length?'<button class="btn" type="button" id="eqSaveDraftBtn">บันทึกข้อมูล</button><button class="btn primary" type="button" id="eqSubmitBtn">ยืนยันผล OK</button>':''}
       <button class="btn" type="button" id="eqPrintCheckBtn">⎙ พิมพ์ Checklist / PDF</button></div></div>`;
-    $e('eqStartBtn')?.addEventListener('click',()=>startChecklist().catch(error));
     $e('eqSaveDraftBtn')?.addEventListener('click',()=>saveChecklist(false).catch(error));
     $e('eqSubmitBtn')?.addEventListener('click',()=>saveChecklist(true).catch(error));
     $e('eqPrintCheckBtn')?.addEventListener('click',()=>printEquipment('check'));
@@ -156,12 +162,46 @@
     if(cl>op+rec){node.textContent='จำนวนเหลือมากกว่าจำนวนต้นเวร + รับเพิ่ม กรุณาตรวจสอบ';return;}
     node.textContent=`ใช้ ${op+rec-cl} · เหลือ ${cl} · ต้องเตรียม ${Math.max(0,Number(snap.required_qty||0)-cl)}`;
   }
-  async function startChecklist(){
+  async function startChecklist({silent=false}={}){
     const date=$e('eqCheckDate').value,ws=$e('eqCheckStation').value,shift=$e('eqCheckShift').value;
     if(!localOpen(date,shift))throw Error('อยู่ภายนอกเวลาเวร ไม่สามารถสร้าง Checklist ย้อนหลังได้');
     const {error:err}=await db().from('equipment_checks').insert({workstation:ws,shift_date:date,shift});
-    if(err&&!String(err.code).includes('23505'))throw err;
-    await loadChecklist();notify('เปิด Checklist แล้ว สามารถกรอกและบันทึกผลได้');
+    if(err&&String(err.code)!=='23505')throw err;
+    await loadChecklist();
+    if(!silent)notify('เปิด Checklist แล้ว สามารถกรอกและบันทึกผลได้');
+  }
+  // Keep unsaved values while Supabase creates the first draft and replaces temporary item IDs with entry IDs.
+  function captureQuickOK(){
+    const values=new Map(),ws=$e('eqCheckStation').value;
+    for(const i of currentItems(ws)){
+      const row=$e('eqCheckBody').querySelector(`[data-eq-row="${i.id}"]`);
+      if(row)values.set(i.id,readRow(row,itemSnap(i)));
+    }
+    return {values,remark:$e('eqOverallRemark')?.value||'',date:$e('eqCheckDate').value,ws,shift:$e('eqCheckShift').value};
+  }
+  function restoreQuickOK(draft){
+    if(!selectedCheck||selectedCheck.workstation!==draft.ws||selectedCheck.shift_date!==draft.date||selectedCheck.shift!==draft.shift)
+      throw Error('จุดตรวจหรือเวรเปลี่ยนระหว่างบันทึก กรุณาตรวจสอบก่อนบันทึกใหม่');
+    if(selectedCheck.checked_by!==ownId()&&!admin())throw Error('Checklist ของเวรนี้มีผู้เริ่มตรวจแล้ว ไม่สามารถบันทึกทับได้');
+    for(const entry of selectedEntries){
+      const saved=draft.values.get(entry.item_id);
+      const row=$e('eqCheckBody').querySelector(`[data-eq-row="${entry.id}"]`);
+      if(!saved||!row)continue;
+      for(const [part,value] of Object.entries(saved.answer||{})){
+        if(part==='fields'){
+          for(const [key,extraValue] of Object.entries(value||{})){
+            const field=Array.from(row.querySelectorAll('[data-eq-extra]')).find(el=>el.dataset.eqExtra===key);
+            if(field)field.value=extraValue;
+          }
+        }else{
+          const field=row.querySelector(`[data-eq-part="${part}"]`);
+          if(field)field.value=value;
+        }
+      }
+      const note=row.querySelector('.eq-note');if(note)note.value=saved.remark;
+      updateStock(row);
+    }
+    $e('eqOverallRemark').value=draft.remark;
   }
   function readRow(row,snap){
     let answer={};
@@ -184,9 +224,21 @@
   }
   function hasInput(answer){if(!answer)return false;if(typeof answer.value==='string')return answer.value!=='';return answer.opening!==''||answer.closing!=='';}
   async function saveChecklist(submit){
-    if(!selectedCheck)throw Error('โปรดเริ่ม Checklist ก่อน');
-    if(!localOpen(selectedCheck.shift_date,selectedCheck.shift))throw Error('หมดเวลาเวรแล้ว ไม่สามารถบันทึกย้อนหลัง');
-    const changes=[];let complete=0;
+    if(saveBusy)return;
+    saveBusy=true;
+    const buttons=Array.from($e('eqCheckBody').querySelectorAll('#eqSaveDraftBtn,#eqSubmitBtn'));
+    buttons.forEach(b=>b.disabled=true);
+    try{
+      if(!selectedCheck){
+        const draft=captureQuickOK();
+        if(!localOpen(draft.date,draft.shift))throw Error('อยู่นอกเวลาเวร ไม่สามารถบันทึก Checklist ได้');
+        await startChecklist({silent:true});
+        restoreQuickOK(draft);
+      }
+      if(!selectedCheck)throw Error('ไม่สามารถเปิด Checklist ได้ กรุณาลองใหม่');
+      if(selectedCheck.checked_by!==ownId()&&!admin())throw Error('คุณไม่มีสิทธิ์บันทึก Checklist ของผู้อื่น');
+      if(!localOpen(selectedCheck.shift_date,selectedCheck.shift))throw Error('หมดเวลาเวรแล้ว ไม่สามารถบันทึกย้อนหลัง');
+      const changes=[];let complete=0;
     for(const e of selectedEntries){
       const row=$e('eqCheckBody').querySelector(`[data-eq-row="${e.id}"]`);if(!row)continue;
       const v=readRow(row,e.item_snapshot);if(isComplete(e.item_snapshot,v.answer,v.remark))complete++;
@@ -203,8 +255,12 @@
       const {error:err}=await db().from('equipment_checks').update(patch).eq('id',selectedCheck.id);
       if(err)throw err;
     }
-    notify(submit?'ยืนยันผล OK สำเร็จ พร้อมชื่อผู้ OK และเวลาจาก Server':'บันทึกข้อมูลแล้ว');
-    await Promise.all([loadChecklist(),loadDashboard()]);
+      notify(submit?'ยืนยันผล OK สำเร็จ พร้อมชื่อผู้ OK และเวลาจาก Server':'บันทึกข้อมูลแล้ว');
+      await Promise.all([loadChecklist(),loadDashboard()]);
+    }finally{
+      saveBusy=false;
+      buttons.forEach(b=>b.disabled=false);
+    }
   }
   async function loadDashboard(){
     if(!authorized()||!stations.length)return;
@@ -286,14 +342,25 @@
     const types=[['status','Dropdown สถานะ'],['date','วันที่'],['text','ข้อความ'],['number','ตัวเลข'],['binary','ตัวเลือกกำหนดเอง'],['stock','สต็อกต้น/ปลายเวร']];
     $e('eqAdminType').innerHTML=types.map(x=>`<option value="${x[0]}">${x[1]}</option>`).join('');
   }
-  function resetAdmin(){editingItemId=null;$e('eqAdminForm').reset();$e('eqAdminHeading').textContent='เพิ่มรายการอุปกรณ์';$e('eqAdminActive').checked=true;$e('eqAdminRequired').value='';$e('eqAdminExtra').value='[]';}
-  function fillAdmin(i){editingItemId=i.id;$e('eqAdminHeading').textContent='แก้ไขรายการอุปกรณ์';$e('eqAdminStation').value=i.workstation;$e('eqAdminName').value=i.name;$e('eqAdminCategory').value=i.category;$e('eqAdminGroup').value=i.bag_group;$e('eqAdminRequired').value=i.required_qty??'';$e('eqAdminUnit').value=i.unit;$e('eqAdminType').value=i.input_type;$e('eqAdminChoices').value=(i.options||[]).join(', ');$e('eqAdminExtra').value=JSON.stringify(i.extra_fields||[],null,2);$e('eqAdminGuidance').value=i.guidance||'';$e('eqAdminOrder').value=i.sort_order;$e('eqAdminActive').checked=i.active;$e('eqAdminPlaceholder').checked=i.is_placeholder;tab('equipmentAdmin');$e('eqAdminForm').scrollIntoView({behavior:'smooth'});}
+  function resetAdmin(){$e('eqAdminAdvanced').open=false;editingItemId=null;$e('eqAdminForm').reset();$e('eqAdminHeading').textContent='เพิ่มรายการอุปกรณ์';$e('eqAdminActive').checked=true;$e('eqAdminRequired').value='';$e('eqAdminExtra').value='[]';}
+  function fillAdmin(i){$e('eqAdminAdvanced').open=true;editingItemId=i.id;$e('eqAdminHeading').textContent='แก้ไขรายการอุปกรณ์';$e('eqAdminStation').value=i.workstation;$e('eqAdminName').value=i.name;$e('eqAdminCategory').value=i.category;$e('eqAdminGroup').value=i.bag_group;$e('eqAdminRequired').value=i.required_qty??'';$e('eqAdminUnit').value=i.unit;$e('eqAdminType').value=i.input_type;$e('eqAdminChoices').value=(i.options||[]).join(', ');$e('eqAdminExtra').value=JSON.stringify(i.extra_fields||[],null,2);$e('eqAdminGuidance').value=i.guidance||'';$e('eqAdminOrder').value=i.sort_order;$e('eqAdminActive').checked=i.active;$e('eqAdminPlaceholder').checked=i.is_placeholder;tab('equipmentAdmin');$e('eqAdminForm').scrollIntoView({behavior:'smooth'});}
   function renderAdmin(){
     if(!admin())return;
     const ws=$e('eqAdminFilter')?.value||'all';
     const match=items.filter(i=>ws==='all'||i.workstation===ws);
     $e('eqAdminFilter').innerHTML='<option value="all">ทุกตำแหน่ง</option>'+stations.map(s=>`<option value="${s.code}" ${ws===s.code?'selected':''}>${escapeHTML(s.display_name)}</option>`).join('');
-    $e('eqAdminList').innerHTML=`<div class="tablewrap"><table><thead><tr><th>ตำแหน่ง</th><th>รายการ / หมวด</th><th>จำนวน</th><th>ช่องกรอก</th><th>สถานะ</th><th>จัดการ</th></tr></thead><tbody>${match.map(i=>`<tr><td>${escapeHTML(stations.find(s=>s.code===i.workstation)?.display_name||i.workstation)}</td><td>${escapeHTML(i.name)}<small>${escapeHTML(i.category||'')} ${escapeHTML(i.bag_group||'')}</small></td><td>${i.required_qty??'—'} ${escapeHTML(i.unit||'')}</td><td>${escapeHTML(i.input_type)}</td><td>${i.active?'ใช้งาน':'ปิดใช้งาน'}</td><td><button type="button" class="btn small" data-eq-edit="${i.id}">แก้ไข</button></td></tr>`).join('')}</tbody></table></div>`;
+    $e('eqAdminList').innerHTML=`<div class="tablewrap"><table><thead><tr><th>ตำแหน่ง</th><th>รายการ / หมวด</th><th>จำนวน</th><th>ช่องกรอก</th><th>สถานะ</th><th>จัดการ</th></tr></thead><tbody>${match.map(i=>`<tr><td>${escapeHTML(stations.find(s=>s.code===i.workstation)?.display_name||i.workstation)}</td><td>${escapeHTML(i.name)}<small>${escapeHTML(i.category||'')} ${escapeHTML(i.bag_group||'')}</small></td><td>${i.required_qty??'—'} ${escapeHTML(i.unit||'')}</td><td>${escapeHTML(i.input_type)}</td><td>${i.active?'ใช้งาน':'ปิดใช้งาน'}</td><td><button type="button" class="btn small" data-eq-edit="${i.id}">แก้ไข</button> <button type="button" class="btn small" data-eq-delete="${i.id}" style="color:#b42318;border-color:#f4b5af">ลบ</button></td></tr>`).join('')}</tbody></table></div>`;
+  }
+  async function deleteAdminItem(i){
+    if(!admin())throw Error('เฉพาะ Admin เท่านั้น');
+    if(!window.confirm(`ต้องการลบรายการ "${i.name}" ออกจาก ${stations.find(s=>s.code===i.workstation)?.display_name||i.workstation} อย่างถาวรหรือไม่?\\nหากรายการนี้มีประวัติ OK ระบบจะไม่อนุญาตให้ลบ`))return;
+    const {error:historyError,count}=await db().from('equipment_entries').select('id',{count:'exact',head:true}).eq('item_id',i.id);
+    if(historyError)throw historyError;
+    if(count>0){notify('รายการนี้มีประวัติ OK แล้ว กรุณาใช้ปิดใช้งานแทนการลบ',true);return;}
+    const {data:deleted,error}=await db().from('equipment_items').delete().eq('id',i.id).select('id');
+    if(error){notify('ลบไม่ได้ อาจมีประวัติอ้างอิงรายการนี้ กรุณาปิดใช้งานแทน',true);return;}
+    if(!deleted?.length){notify('ไม่สามารถลบรายการนี้ได้ กรุณาตรวจสอบสิทธิ์ Admin',true);return;}
+    notify('ลบรายการแล้ว');if(editingItemId===i.id)resetAdmin();await reloadTemplates();await loadDashboard();
   }
   async function submitAdmin(e){e.preventDefault();if(!admin())throw Error('เฉพาะ Admin');
     let extras;try{extras=JSON.parse($e('eqAdminExtra').value||'[]');if(!Array.isArray(extras))throw Error('ต้องเป็น array');}catch(_){throw Error('Extra Fields ต้องเป็น JSON array ที่ถูกต้อง')}
@@ -317,7 +384,7 @@
     $e('eqAdminForm').addEventListener('submit',e=>submitAdmin(e).catch(error));
     $e('eqAdminReset').addEventListener('click',resetAdmin);
     $e('eqAdminFilter').addEventListener('change',renderAdmin);
-    $e('eqAdminList').addEventListener('click',e=>{const b=e.target.closest('[data-eq-edit]');if(b){const i=items.find(x=>x.id===b.dataset.eqEdit);if(i)fillAdmin(i)}});
+    $e('eqAdminList').addEventListener('click',e=>{const del=e.target.closest('[data-eq-delete]');if(del){const i=items.find(x=>x.id===del.dataset.eqDelete);if(i)deleteAdminItem(i).catch(error);return;}const b=e.target.closest('[data-eq-edit]');if(b){const i=items.find(x=>x.id===b.dataset.eqEdit);if(i)fillAdmin(i)}});
     window.addEventListener('afterprint',()=>{if(document.body.dataset.print==='equipment'){delete document.body.dataset.print;$e('eqPrintLayout').innerHTML='';}});
   }
   window.EMS_EQUIPMENT={onLogin,onLogout,onTab,installHandlers};
