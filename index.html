@@ -88,6 +88,21 @@
 #equipmentCheck .eq-check-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;position:sticky;bottom:0;background:#fff;padding:12px 0;border-top:1px solid #e4edf3;z-index:3}
 #equipmentCheck .eq-check-actions .btn{min-height:43px}
 @media(max-width:720px){#equipmentCheck .eq-check-actions .btn{flex:1;min-width:120px}#equipmentCheck .eq-check-actions{padding:10px 6px;box-shadow:0 -3px 10px rgba(0,0,0,.04)}}
+
+/* Admin Settings: show Add Procedure first, above both catalogs. */
+#settings .admin-procedure-create{border:1px solid #c8dfea;background:linear-gradient(180deg,#f6fbff 0%,#fff 100%)}
+#settings .admin-procedure-create>.top{margin-bottom:18px}
+#settings .admin-procedure-create h3{margin:0 0 4px;color:#1b5779}
+#settings .admin-procedure-create .muted{margin:0}
+#settings #addProcedureForm{grid-template-columns:repeat(3,minmax(0,1fr));align-items:end;gap:14px}
+#settings #addProcedureForm .field.wide{grid-column:1/-1}
+#settings #addProcedureForm .field.wide span{display:flex;align-items:center;gap:9px}
+#settings #addProcedureForm .field.wide input[type=checkbox]{width:18px;height:18px;accent-color:#176c90}
+#settings .admin-settings-catalogs{align-items:start;gap:16px}
+#settings .admin-settings-catalogs .card{min-width:0}
+@media(max-width:920px){#settings #addProcedureForm{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){#settings #addProcedureForm{grid-template-columns:1fr}}
+
 </style>
 </head>
 <body>
@@ -157,8 +172,14 @@
   </section>
   <section class="tab admin-only" id="members"><div class="top"><div><h2>Staff Accounts & Approval</h2><p class="muted">อนุมัติหรือปฏิเสธคำขอสมัครสมาชิก พร้อมตรวจสอบประวัติสถานะ</p></div><button class="btn no-print" id="printMembers">⎙ พิมพ์รายชื่อ</button></div><div class="card section"><h3>คำขอรออนุมัติ <span id="pendingCount" class="pill warn">0</span></h3><div class="tablewrap"><table><thead><tr><th>ชื่อ–นามสกุล</th><th>Username / Email</th><th>ตำแหน่ง</th><th>สมัครเมื่อ</th><th class="no-print">จัดการ</th></tr></thead><tbody id="pendingRows"></tbody></table></div></div><div class="card print-scope"><h3>บุคลากรทั้งหมด</h3><div class="tablewrap"><table><thead><tr><th>ชื่อ–นามสกุล</th><th>Username</th><th>ตำแหน่ง</th><th>สิทธิ์</th><th>สถานะ</th></tr></thead><tbody id="memberRows"></tbody></table></div></div></section>
   <section class="tab admin-only" id="settings"><div class="top"><div><h2>Admin Settings</h2><p class="muted">เพิ่มหรือปิดใช้งาน Certificate / หัตถการ และกำหนดรอบทบทวน</p></div></div>
-   <div class="two"><div class="card"><h3>หลักสูตร Certificate</h3><form id="addCourseForm" class="row section no-print"><input id="newCourseName" class="mini-input" style="width:min(100%,300px)" placeholder="ชื่อหลักสูตรใหม่" minlength="2" maxlength="120" required><button class="btn primary">+ เพิ่ม</button></form><div id="coursesList"></div></div>
-   <div class="card"><h3>ประเภทหัตถการ</h3><form id="addProcedureForm" class="grid-form no-print"><label class="field">ชื่อหัตถการ<input id="newProcedureName" minlength="2" maxlength="120" required></label><label class="field">รอบทบทวน (วัน)<input id="newProcedureInterval" type="number" min="1" max="3650" value="180" required></label><label class="field">ตำแหน่ง<select id="newProcedureScope"><option value="BOTH">ทุกวิชาชีพ</option><option value="RN">RN</option><option value="PN">PN</option></select></label><label class="field wide"><span><input id="newProcedureSimulation" type="checkbox"> อนุญาตให้นับ Simulation ที่สำเร็จ</span></label><div><button class="btn primary">+ เพิ่มหัตถการ</button></div></form><div id="procedureCatalogList" class="section"></div></div></div>
+   <div class="card section admin-procedure-create">
+    <div class="top"><div><h3>+ เพิ่มหัตถการ</h3><p class="muted">เพิ่มประเภทหัตถการใหม่และกำหนดรอบทบทวนสำหรับบุคลากร</p></div></div>
+    <form id="addProcedureForm" class="grid-form no-print"><label class="field">ชื่อหัตถการ<input id="newProcedureName" minlength="2" maxlength="120" required></label><label class="field">รอบทบทวน (วัน)<input id="newProcedureInterval" type="number" min="1" max="3650" value="180" required></label><label class="field">ตำแหน่ง<select id="newProcedureScope"><option value="BOTH">ทุกวิชาชีพ</option><option value="RN">RN</option><option value="PN">PN</option></select></label><label class="field wide"><span><input id="newProcedureSimulation" type="checkbox"> อนุญาตให้นับ Simulation ที่สำเร็จ</span></label><div><button class="btn primary">+ เพิ่มหัตถการ</button></div></form>
+   </div>
+   <div class="two admin-settings-catalogs">
+    <div class="card"><h3>รายการประเภทหัตถการ</h3><div id="procedureCatalogList" class="section"></div></div>
+    <div class="card"><h3>หลักสูตร Certificate</h3><form id="addCourseForm" class="row section no-print"><input id="newCourseName" class="mini-input" style="width:min(100%,300px)" placeholder="ชื่อหลักสูตรใหม่" minlength="2" maxlength="120" required><button class="btn primary">+ เพิ่ม</button></form><div id="coursesList"></div></div>
+   </div>
    <div class="banner warn section">ค่ารอบทบทวนที่กำหนดในระบบเป็นนโยบายหน่วยงาน ไม่ใช่หลักฐานยืนยันว่าสมรรถนะทางคลินิกผ่านโดยอัตโนมัติ</div>
   </section>
 
