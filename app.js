@@ -12,10 +12,77 @@ const label = (txt,kind='') => `<span class="pill ${kind}">${esc(txt)}</span>`;
 const empty = (n=5,txt='ไม่มีรายการ') => `<tr><td colspan="${n}" class="empty">${esc(txt)}</td></tr>`;
 let recoveryMode=false, sb=null, current=null, mine=null, profiles=[], courses=[], catalog=[], certificates=[], logs=[], renewId=null, certEditId=null, procEditId=null;
 const isAdmin = () => mine?.access_role==='admin' && mine?.approval_status==='approved';
+
+// Avatar v2. Private bucket, per-user UUID folder, no public URLs or service role.
+let profileAvatarObjectURL=null, profileAvatarRenderId=0;
+function clearProfileAvatarDisplay(){
+  profileAvatarRenderId++;
+  if(profileAvatarObjectURL){URL.revokeObjectURL(profileAvatarObjectURL);profileAvatarObjectURL=null;}
+  const img=$('profileAvatarImage'),placeholder=$('profileAvatarPlaceholder');
+  if(img){img.hidden=true;img.removeAttribute('src');}
+  if(placeholder)placeholder.hidden=false;
+}
+async function renderMyAvatar(){
+  clearProfileAvatarDisplay();
+  const thisRender=profileAvatarRenderId;
+  const path=mine?.avatar_path;
+  const status=$('myAvatarStatus'),deleteButton=$('myAvatarDelete');
+  if(deleteButton)deleteButton.disabled=!path;
+  if(!path){if(status)status.textContent='ยังไม่มีรูปโปรไฟล์';return;}
+  if(status)status.textContent='กำลังโหลดรูปโปรไฟล์…';
+  try{
+    const {data,error}=await sb.storage.from('ems-avatars').download(path);
+    if(error)throw error;
+    if(thisRender!==profileAvatarRenderId)return;
+    profileAvatarObjectURL=URL.createObjectURL(data);
+    $('profileAvatarImage').src=profileAvatarObjectURL;
+    $('profileAvatarImage').hidden=false;
+    $('profileAvatarPlaceholder').hidden=true;
+    if(status)status.textContent='แสดงรูปโปรไฟล์ล่าสุดแล้ว';
+  }catch(err){
+    if(thisRender===profileAvatarRenderId){
+      if(status)status.textContent='ไม่สามารถโหลดรูปได้ กรุณาตรวจ Storage Policies และสิทธิ์บัญชี';
+      console.error('Avatar download failed:',err);
+    }
+  }
+}
+function setAvatarActionBusy(busy){
+  $('myAvatarUpload').disabled=busy;
+  $('myAvatarFile').disabled=busy;
+  $('myAvatarDelete').disabled=busy||!mine?.avatar_path;
+}
+
+// Staff Profile v1. Safe update is performed by the server-side RPC, never by updating profiles directly.
+function staffTenureText(iso){
+  if(!iso)return 'ยังไม่ระบุวันเริ่มทำงาน';
+  const start=new Date(iso+'T12:00:00'),now=new Date(todayISO()+'T12:00:00');
+  if(!Number.isFinite(start.getTime())||start>now)return 'วันเริ่มทำงานไม่ถูกต้อง';
+  let months=(now.getFullYear()-start.getFullYear())*12+now.getMonth()-start.getMonth();
+  if(now.getDate()<start.getDate())months--;
+  months=Math.max(0,months);
+  return `${Math.floor(months/12)} ปี ${months%12} เดือน`;
+}
+function refreshStaffTenure(){
+  const el=$('myProfileTenure');if(el)el.textContent=staffTenureText($('myProfileStart').value);
+}
+function renderMyProfile(){
+  if(!mine||!$('myProfileForm'))return;
+  $('myProfileFirst').value=mine.first_name||'';
+  $('myProfileLast').value=mine.last_name||'';
+  $('myProfilePhone').value=mine.phone_number||'';
+  $('myProfileStart').value=mine.employment_start_date||'';
+  $('myProfileStart').max=todayISO();
+  $('myProfilePosition').value=mine.position||'';
+  $('profileDisplayName').textContent=`${mine.first_name||''} ${mine.last_name||''}`.trim();
+  $('profileRoleLabel').textContent=`${mine.position||''} · ${mine.access_role==='admin'?'Admin':'Staff'}`;
+  refreshStaffTenure();
+  void renderMyAvatar();
+}
+
 const fullName = id => {const p=profiles.find(x=>x.id===id);return p?`${p.first_name} ${p.last_name}`:'ไม่พบข้อมูล'};
 const toast = (message,error=false) => {let x=$('toast');x.textContent=message;x.style.background=error?'#962e43':'#244d6b';x.style.display='block';clearTimeout(window.emsToast);window.emsToast=setTimeout(()=>x.style.display='none',6000)};
 const reportError = e => {console.error(e);toast(e?.message||'เกิดข้อผิดพลาด กรุณาลองอีกครั้ง',true)};
-function showAuthPanel(){ $('startup').hidden=true; $('authWrap').classList.remove('hidden'); $('appPanel').hidden=true; $('mainNav').hidden=true; $('logoutBtn').classList.add('hidden'); $('identity').textContent='EMS Suandok Competency & Operations Hub'; }
+function showAuthPanel(){ clearProfileAvatarDisplay(); $('startup').hidden=true; $('authWrap').classList.remove('hidden'); $('appPanel').hidden=true; $('mainNav').hidden=true; $('logoutBtn').classList.add('hidden'); $('identity').textContent='EMS Suandok Competency & Operations Hub'; }
 function chooseAuth(which){$('loginForm').hidden=which!=='login';$('signupForm').hidden=which!=='signup';$('showLogin').setAttribute('aria-selected',which==='login');$('showSignup').setAttribute('aria-selected',which==='signup');$('showLogin').classList.toggle('primary',which==='login');$('showSignup').classList.toggle('primary',which==='signup');}
 function pendingScreen(){showAuthPanel();$('authCard').classList.add('hidden');$('pendingCard').classList.remove('hidden');let st=mine?.approval_status||'pending';$('pendingTitle').textContent=st==='rejected'?'คำขอไม่ผ่านการอนุมัติ':st==='suspended'?'บัญชีถูกระงับ':'รอ Admin อนุมัติบัญชี';$('pendingInfo').textContent=`${mine?.first_name||''} ${mine?.last_name||''} (${mine?.position||''}) — ${st==='pending'?'ส่งคำขอแล้ว โปรดให้ Admin ตรวจสอบ หลังอนุมัติจึงจะเข้าระบบได้':'หากมีข้อสงสัยกรุณาติดต่อผู้ดูแลหน่วยงาน'}`;}
 async function fetchAll(table){let out=[];for(let i=0;i<60;i++){let {data,error}=await sb.from(table).select('*').order('created_at',{ascending:false}).range(i*500,(i+1)*500-1);if(error)throw error;out.push(...(data||[]));if(!data||data.length<500) return out;}throw new Error('ข้อมูลจำนวนมากเกินช่วงโหลด โปรดติดต่อผู้ดูแล');}
@@ -33,7 +100,7 @@ async function load(){
       isAdmin()?fetchAll('profiles'):Promise.resolve([mine]),fetchAll('certificate_courses'),fetchAll('procedure_catalog'),fetchAll('certificates'),fetchAll('procedure_logs')]);
     certificates=certificates.filter(c=>!c.deleted_at);
     logs=logs.filter(l=>!l.deleted_at);
-    render();
+    render();renderMyProfile();
     if(window.EMS_EQUIPMENT)await window.EMS_EQUIPMENT.onLogin();
   } catch(e){reportError(e);if(!mine||mine.approval_status!=='approved')showAuthPanel();}
 }
@@ -349,6 +416,83 @@ async function downloadOwnCertificate(record,button){
  $('coursesList').addEventListener('click',async e=>{const b=e.target.closest('[data-course-toggle]');if(!b)return;const c=courses.find(x=>x.id===b.dataset.courseToggle);if(!c)return;try{const {error}=await sb.from('certificate_courses').update({active:!c.active}).eq('id',c.id);if(error)throw error;await load();}catch(err){reportError(err)}});
  $('addProcedureForm').addEventListener('submit',async e=>{e.preventDefault();try{const {error}=await sb.from('procedure_catalog').insert({name:$('newProcedureName').value.trim(),interval_days:Number($('newProcedureInterval').value),position_scope:$('newProcedureScope').value,count_simulation:$('newProcedureSimulation').checked});if(error)throw error;e.target.reset();toast('เพิ่มรายการหัตถการแล้ว');await load();}catch(err){reportError(err)}});
  $('procedureCatalogList').addEventListener('click',async e=>{const save=e.target.closest('[data-save-procedure]'),toggle=e.target.closest('[data-toggle-procedure]');if(!save&&!toggle)return;let p=catalog.find(x=>x.id===(save?.dataset.saveProcedure||toggle?.dataset.toggleProcedure));if(!p)return;try{let patch=toggle?{active:!p.active}:{interval_days:Number(document.querySelector(`[data-interval="${p.id}"]`).value),position_scope:document.querySelector(`[data-scope="${p.id}"]`).value,count_simulation:document.querySelector(`[data-sim="${p.id}"]`).checked};const {error}=await sb.from('procedure_catalog').update(patch).eq('id',p.id);if(error)throw error;toast('บันทึกการตั้งค่าหัตถการแล้ว');await load();}catch(err){reportError(err)}});
- await load();
+  $('myAvatarFile').addEventListener('change',()=>{
+    const file=$('myAvatarFile').files[0];
+    if(file)$('myAvatarStatus').textContent=`เลือกรูป: ${file.name} — กดอัปโหลดเพื่อบันทึก`;
+  });
+  $('myAvatarUpload').addEventListener('click',async()=>{
+    if(!current||!mine||mine.approval_status!=='approved')return toast('กรุณา Login ด้วยบัญชีที่อนุมัติแล้ว',true);
+    const file=$('myAvatarFile').files[0];
+    if(!file)return toast('กรุณาเลือกรูปโปรไฟล์ก่อนค่ะ',true);
+    const extensions={'image/jpeg':'jpg','image/png':'png','image/webp':'webp'};
+    if(!extensions[file.type])return toast('เลือกได้เฉพาะ JPEG, PNG หรือ WebP',true);
+    if(!file.size||file.size>2*1024*1024)return toast('ขนาดรูปต้องไม่เกิน 2 MB',true);
+    if(!confirm('อัปโหลดรูปนี้เป็นรูปโปรไฟล์ของคุณใช่หรือไม่?'))return;
+    const userId=current.id,oldPath=mine.avatar_path||null;
+    const newPath=`${userId}/${crypto.randomUUID()}.${extensions[file.type]}`;
+    let uploaded=false,profileUpdated=false;
+    setAvatarActionBusy(true);
+    $('myAvatarStatus').textContent='กำลังอัปโหลดรูป…';
+    try{
+      const upload=await sb.storage.from('ems-avatars').upload(newPath,file,{contentType:file.type,upsert:false});
+      if(upload.error)throw upload.error;
+      uploaded=true;
+      const saved=await sb.rpc('ems_set_my_avatar',{p_avatar_path:newPath});
+      if(saved.error)throw saved.error;
+      profileUpdated=true;
+      $('myAvatarFile').value='';
+      await load();
+      let oldFileCleanupFailed=false;
+      if(oldPath && oldPath!==newPath){
+        const remove=await sb.storage.from('ems-avatars').remove([oldPath]);
+        oldFileCleanupFailed=!!remove.error;
+      }
+      toast(oldFileCleanupFailed?'เปลี่ยนรูปแล้ว แต่ลบไฟล์รูปเก่าไม่สำเร็จ โปรดแจ้ง Admin':'อัปโหลดรูปโปรไฟล์สำเร็จ',oldFileCleanupFailed);
+    }catch(err){
+      if(uploaded&&!profileUpdated){
+        try{await sb.storage.from('ems-avatars').remove([newPath]);}catch(_err){console.error('Avatar cleanup failed:',_err);}
+      }
+      reportError(err);
+      $('myAvatarStatus').textContent='อัปโหลดไม่สำเร็จ ตรวจสอบว่ารัน SQL ems_set_my_avatar แล้ว';
+    }finally{setAvatarActionBusy(false);}
+  });
+  $('myAvatarDelete').addEventListener('click',async()=>{
+    if(!current||!mine||mine.approval_status!=='approved'||!mine.avatar_path)return;
+    if(!confirm('ต้องการลบรูปโปรไฟล์ของคุณใช่หรือไม่?'))return;
+    const oldPath=mine.avatar_path;
+    setAvatarActionBusy(true);
+    $('myAvatarStatus').textContent='กำลังลบรูปโปรไฟล์…';
+    try{
+      const saved=await sb.rpc('ems_set_my_avatar',{p_avatar_path:null});
+      if(saved.error)throw saved.error;
+      await load();
+      const removed=await sb.storage.from('ems-avatars').remove([oldPath]);
+      if(removed.error){
+        toast('นำรูปออกจากโปรไฟล์แล้ว แต่ลบไฟล์เก่าไม่สำเร็จ โปรดแจ้ง Admin',true);
+      }else toast('ลบรูปโปรไฟล์แล้ว');
+    }catch(err){reportError(err);}
+    finally{setAvatarActionBusy(false);}
+  });
+  $('myProfileStart').addEventListener('change',refreshStaffTenure);
+  $('myProfileForm').addEventListener('submit',async e=>{
+    e.preventDefault();
+    if(!current||!mine||mine.approval_status!=='approved')return toast('กรุณาเข้าสู่ระบบและรออนุมัติบัญชีก่อน',true);
+    const btn=$('myProfileSave');btn.disabled=true;
+    const first=$('myProfileFirst').value.trim(),last=$('myProfileLast').value.trim();
+    const phone=$('myProfilePhone').value.trim(),start=$('myProfileStart').value||null;
+    try{
+      if(!first||!last||first.length>100||last.length>100)throw Error('กรุณากรอกชื่อและนามสกุลให้ถูกต้อง');
+      if(phone.length>30)throw Error('เบอร์โทรยาวเกินกำหนด');
+      if(start&&start>todayISO())throw Error('วันที่เริ่มทำงานต้องไม่เป็นวันในอนาคต');
+      const {error}=await sb.rpc('ems_update_my_profile',{
+        p_first_name:first,p_last_name:last,p_phone_number:phone,p_employment_start_date:start
+      });
+      if(error)throw error;
+      $('myProfileStatus').textContent='บันทึกเรียบร้อย';
+      toast('บันทึกข้อมูลสมาชิกของฉันแล้ว');
+      await load();
+    }catch(err){reportError(err);}finally{btn.disabled=false;}
+  });
+  await load();
 }
-window.addEventListener('DOMContentLoaded',()=>init().catch(reportError));
+window.addEventListener('DOMContentLoaded' ,()=>init().catch(reportError));
