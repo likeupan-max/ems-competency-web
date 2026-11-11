@@ -282,11 +282,41 @@ async function init(){
  const cfg=window.EMS_CONFIG||{};const valid=/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(cfg.supabaseUrl||'')&&cfg.supabasePublishableKey&&!String(cfg.supabasePublishableKey).startsWith('PASTE_');
  if(!valid||!window.supabase){$('startup').hidden=true;showAuthPanel();$('unconfigured').hidden=false;return;}
  sb=window.supabase.createClient(cfg.supabaseUrl,cfg.supabasePublishableKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
-  const recoveryLink =   new URLSearchParams(window.location.search).get('type') === 'recovery' ||   new URLSearchParams(window.location.hash.slice(1)).get('type') === 'recovery';  if (recoveryLink) {   recoveryMode = true; }  function showRecoveryScreen() {   recoveryMode = true;   showAuthPanel();   $('authCard').classList.add('hidden');   $('pendingCard').classList.add('hidden');   $('recoveryCard').classList.remove('hidden'); }  sb.auth.onAuthStateChange((event) => {   if (event === 'PASSWORD_RECOVERY') {     recoveryMode = true;     setTimeout(showRecoveryScreen, 0);   } });
- $('recoveryForm').addEventListener('submit',async e=>{e.preventDefault();try{const {error}=await sb.auth.updateUser({password:$('recoveryPassword').value});if(error)throw error;recoveryMode=false;await sb.auth.signOut();$('recoveryCard').classList.add('hidden');$('authCard').classList.remove('hidden');chooseAuth('login');toast('เปลี่ยนรหัสผ่านเรียบร้อย กรุณาเข้าสู่ระบบอีกครั้ง');}catch(err){reportError(err)}});
+ const recoveryParams = new URLSearchParams(location.search);
+const recoveryHash = new URLSearchParams(location.hash.slice(1));
+const recoveryLink =
+  recoveryParams.get('type') === 'recovery' ||
+  recoveryHash.get('type') === 'recovery';
+function showRecoveryScreen() {
+  recoveryMode = true;
+  showAuthPanel();
+  $('authCard').classList.add('hidden');
+  $('pendingCard').classList.add('hidden');
+  $('recoveryCard').classList.remove('hidden');
+}
+   sb.auth.onAuthStateChange((event) => {
+  if (event === 'PASSWORD_RECOVERY') {
+    setTimeout(showRecoveryScreen, 0);
+  }
+});
+
+if (recoveryLink) {
+  const { data: { session }, error } = await sb.auth.getSession();
+
+  if (!error && session) {
+    showRecoveryScreen();
+  } else {
+    recoveryMode = false;
+    showAuthPanel();
+    $('recoveryCard').classList.add('hidden');
+    $('authCard').classList.remove('hidden');
+    toast('ไม่สามารถยืนยันลิงก์รีเซ็ตรหัสผ่านได้ กรุณาขอลิงก์ใหม่', true);
+  }
+}
+$('recoveryForm').addEventListener('submit',async e=>{e.preventDefault();try{const {error}=await sb.auth.updateUser({password:$('recoveryPassword').value});if(error)throw error;recoveryMode=false;await sb.auth.signOut();$('recoveryCard').classList.add('hidden');$('authCard').classList.remove('hidden');chooseAuth('login');toast('เปลี่ยนรหัสผ่านเรียบร้อย กรุณาเข้าสู่ระบบอีกครั้ง');}catch(err){reportError(err)}});
  $('loginForm').addEventListener('submit',async e=>{e.preventDefault();const btn=e.submitter;btn.disabled=true;try{const {error}=await sb.auth.signInWithPassword({email:$('loginEmail').value.trim(),password:$('loginPass').value});if(error)throw error;$('loginPass').value='';await load();}catch(err){reportError(err)}finally{btn.disabled=false}});
  $('signupForm').addEventListener('submit',async e=>{e.preventDefault();const btn=e.submitter;btn.disabled=true;try{let username=$('regUsername').value.trim().toLowerCase();if(!/^[a-z0-9_.-]{3,32}$/.test(username))throw Error('Username ต้องเป็นภาษาอังกฤษ/ตัวเลข/._- ยาว 3–32 ตัวอักษร');const {error}=await sb.auth.signUp({email:$('regEmail').value.trim(),password:$('regPassword').value,options:{emailRedirectTo:location.origin+location.pathname,data:{first_name:$('regFirst').value.trim(),last_name:$('regLast').value.trim(),position:$('regPosition').value,username}}});if(error)throw error;await sb.auth.signOut();e.target.reset();chooseAuth('login');toast('รับคำขอสมัครแล้ว กรุณาตรวจอีเมลเพื่อยืนยัน แล้วรอ Admin อนุมัติ (หาก Username ซ้ำอาจไม่สำเร็จ)');}catch(err){reportError(err)}finally{btn.disabled=false}});
- $('forgotPassword').onclick=async()=>{const email=$('loginEmail').value.trim();if(!email)return toast('กรอกอีเมลที่ใช้สมัครก่อนค่ะ',true);try{let {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:location.origin+location.pathname});if(error)throw error;toast('หากมีบัญชีนี้ ระบบจะส่งลิงก์รีเซ็ตรหัสผ่านทางอีเมล')}catch(e){reportError(e)}};
+ $('forgotPassword').onclick=async()=>{const email=$('loginEmail').value.trim();if(!email)return toast('กรอกอีเมลที่ใช้สมัครก่อนค่ะ',true);try{let {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:location.origin+location.pathname+'?type=recovery'});if(error)throw error;toast('หากมีบัญชีนี้ ระบบจะส่งลิงก์รีเซ็ตรหัสผ่านทางอีเมล')}catch(e){reportError(e)}};
  async function logout(){if(window.EMS_EQUIPMENT)window.EMS_EQUIPMENT.onLogout();await sb.auth.signOut();current=null;mine=null;profiles=[];courses=[];catalog=[];certificates=[];logs=[];showAuthPanel();$('authCard').classList.remove('hidden');$('pendingCard').classList.add('hidden')}
  $('logoutBtn').onclick=logout;$('pendingLogout').onclick=logout;$('checkApproval').onclick=load;$('refreshBtn').onclick=load;
  $('dashboardPersonFilter').addEventListener('change',render);
