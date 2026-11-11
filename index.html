@@ -168,6 +168,36 @@
    </form>
   </div>
   <div class="card hidden" id="recoveryCard"><h2>ตั้งรหัสผ่านใหม่</h2><p class="muted">ตั้งรหัสผ่านใหม่หลังเปิดลิงก์จากอีเมล</p><form id="recoveryForm"><label class="field section">รหัสผ่านใหม่ (อย่างน้อย 10 ตัวอักษร)<input id="recoveryPassword" type="password" minlength="10" autocomplete="new-password" required></label><button class="btn primary">เปลี่ยนรหัสผ่าน</button></form></div>
+  
+<div class="card hidden" id="otpCard">
+  <h2>ยืนยันรหัส OTP เพื่อตั้งรหัสผ่านใหม่</h2>
+  <p class="muted">กรอกอีเมลและรหัส 6 หลักที่ได้รับทางอีเมล</p>
+
+  <form id="otpResetForm">
+    <label class="field section">อีเมล
+      <input id="otpEmail" type="email" autocomplete="email" required>
+    </label>
+
+    <label class="field section">รหัส OTP 6 หลัก
+      <input id="otpCode" type="text" inputmode="numeric"
+        pattern="[0-9]{6}" maxlength="6"
+        autocomplete="one-time-code" required>
+    </label>
+
+    <label class="field section">รหัสผ่านใหม่ (อย่างน้อย 10 ตัวอักษร)
+      <input id="otpNewPassword" type="password"
+        minlength="10" autocomplete="new-password" required>
+    </label>
+
+    <label class="field section">ยืนยันรหัสผ่านใหม่
+      <input id="otpConfirmPassword" type="password"
+        minlength="10" autocomplete="new-password" required>
+    </label>
+
+    <button class="btn primary" type="submit">ยืนยัน OTP และเปลี่ยนรหัสผ่าน</button>
+  </form>
+</div>
+
   <div class="card hidden" id="pendingCard"><h2 id="pendingTitle">รออนุมัติบัญชี</h2><p id="pendingInfo">บัญชีของคุณอยู่ระหว่างตรวจสอบ</p><div class="row"><button class="btn primary" id="checkApproval" type="button">ตรวจสอบสถานะอีกครั้ง</button><button class="btn" id="pendingLogout" type="button">ออกจากระบบ</button></div></div>
  </section>
  <div id="appPanel" hidden>
