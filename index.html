@@ -171,18 +171,20 @@
   
 <div class="card hidden" id="otpCard">
   <h2>ยืนยันรหัส OTP เพื่อตั้งรหัสผ่านใหม่</h2>
-  <p class="muted">กรอกอีเมลและรหัส 6 หลักที่ได้รับทางอีเมล</p>
+  <p class="muted">กรอกอีเมลและรหัส 8 หลักที่ได้รับทางอีเมล</p>
 
   <form id="otpResetForm">
     <label class="field section">อีเมล
       <input id="otpEmail" type="email" autocomplete="email" required>
     </label>
 
-    <label class="field section">รหัส OTP 6 หลัก
-      <input id="otpCode" type="text" inputmode="numeric"
-        pattern="[0-9]{6}" maxlength="6"
-        autocomplete="one-time-code" required>
-    </label>
+    
+<label class="field section">รหัส OTP 8 หลัก
+  <input id="otpCode" type="text" inputmode="numeric"
+    pattern="[0-9]{8}" maxlength="8"
+    autocomplete="one-time-code" required>
+</label>
+
 
     <label class="field section">รหัสผ่านใหม่ (อย่างน้อย 10 ตัวอักษร)
       <input id="otpNewPassword" type="password"
