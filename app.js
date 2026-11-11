@@ -282,11 +282,27 @@ async function init(){
  const cfg=window.EMS_CONFIG||{};const valid=/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(cfg.supabaseUrl||'')&&cfg.supabasePublishableKey&&!String(cfg.supabasePublishableKey).startsWith('PASTE_');
  if(!valid||!window.supabase){$('startup').hidden=true;showAuthPanel();$('unconfigured').hidden=false;return;}
  sb=window.supabase.createClient(cfg.supabaseUrl,cfg.supabasePublishableKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
- const recoveryParams = new URLSearchParams(location.search);
+ let resetTokenVerified = false;const recoveryParams = new URLSearchParams(location.search);
+   const resetTokenHash = recoveryParams.get('token_hash');
+
+if (resetTokenHash && recoveryParams.get('type') === 'recovery') {
+  const { error } = await sb.auth.verifyOtp({
+    token_hash: resetTokenHash,
+    type: 'recovery'
+  });
+
+  if (error) {
+    reportError(error);
+} else {
+  resetTokenVerified = true;
+  history.replaceState(null, '', location.pathname);
+}
+}
 const recoveryHash = new URLSearchParams(location.hash.slice(1));
 const recoveryLink =
   recoveryParams.get('type') === 'recovery' ||
-  recoveryHash.get('type') === 'recovery';
+  recoveryHash.get('type') === 'recovery' ||
+ (resetTokenHash ? resetTokenVerified : false);
 function showRecoveryScreen() {
   recoveryMode = true;
   showAuthPanel();
@@ -300,7 +316,7 @@ function showRecoveryScreen() {
   }
 });
 
-if (recoveryLink) {
+if (recoveryLink && (!resetTokenHash || resetTokenVerified)) {
   const { data: { session }, error } = await sb.auth.getSession();
 
   if (!error && session) {
