@@ -1,0 +1,153 @@
+/* EMS Suandok — Daily Operations Dashboard visual refresh v1
+   Presentation-only stylesheet for EMS Daily Roster V2.
+   No JavaScript, database, permission or business-logic changes.
+   Use with: <link rel="stylesheet" href="./operations-theme.css?v=design-v1-20261117">
+*/
+
+/* Full operations view: clear header and generous spacing */
+#appPanel #operations { --ops-navy:#163a55; --ops-teal:#0c7282; --ops-ink:#243d52;
+  --ops-line:#dce9ef; --ops-soft:#f5f9fc; --ops-orange:#eaa15d; color:var(--ops-ink); }
+#appPanel #operations > .top {
+  position:relative; isolation:isolate; overflow:hidden; display:flex;
+  align-items:center; min-height:135px; padding:23px 27px;
+  margin:0 0 16px; border-radius:20px;
+  background:linear-gradient(115deg,#12334f 0%,#0e607a 72%,#16818b 100%);
+  box-shadow:0 13px 30px rgba(17,61,86,.14);
+}
+#appPanel #operations > .top::after {
+  content:"";position:absolute;z-index:-1;right:-35px;top:-110px;
+  width:270px;height:270px;border:1px solid rgba(255,255,255,.22);
+  border-radius:50%;box-shadow:0 0 0 54px rgba(255,255,255,.045),0 0 0 108px rgba(255,255,255,.022);
+  pointer-events:none;
+}
+#appPanel #operations > .top h2 {color:white;font-size:clamp(22px,2.5vw,30px);letter-spacing:-.025em;line-height:1.25;margin:0 0 8px}
+#appPanel #operations > .top .muted {color:#d6edf4;font-size:13px;max-width:660px;margin:0;line-height:1.6}
+#appPanel #operations > .top #opsRefresh {
+  border:1px solid rgba(255,255,255,.45);background:rgba(255,255,255,.13);
+  color:white;backdrop-filter:blur(5px);border-radius:10px;min-height:42px;
+}
+#appPanel #operations > .top #opsRefresh:hover {background:rgba(255,255,255,.23)}
+
+/* Date / shift selection */
+#appPanel #operations > .card.section:first-of-type {border:1px solid var(--ops-line);box-shadow:0 5px 18px rgba(14,64,85,.05)}
+#appPanel #operations .ops-filters {display:flex;align-items:end;gap:13px}
+#appPanel #operations .ops-filters .field {min-width:min(100%,190px);flex:1 1 190px;gap:7px;color:#38596e;font-weight:750}
+#appPanel #operations .ops-filters select,
+#appPanel #operations .ops-filters input {min-height:45px;border-radius:11px;border-color:#c8dce6;background:#fbfdff}
+#appPanel #operations #opsToday {min-height:45px;white-space:nowrap;border-color:#b5d6e2;color:#0e657c;background:#edf8fb}
+#appPanel #operations #opsToday:hover {background:#dcf0f6}
+
+/* Two main information cards */
+#appPanel #operations .ops-columns {align-items:start;gap:17px}
+#appPanel #operations .ops-columns > .card {min-width:0;border:1px solid var(--ops-line);
+  border-radius:18px;padding:19px 21px;box-shadow:0 5px 20px rgba(20,64,88,.055)}
+#appPanel #operations .ops-columns:first-of-type > .card {min-height:260px}
+#appPanel #operations .ops-columns > .card > h3 {font-size:18px;color:var(--ops-navy);
+  margin:0 0 14px;padding:0 0 14px;border-bottom:1px solid var(--ops-line)}
+#appPanel #operations .ops-columns > .card:first-child > h3 {border-bottom-color:#c7e4e7}
+#appPanel #operations #opsRosterList,
+#appPanel #operations #opsContactsList {display:grid;gap:12px}
+
+/* Group headers and entries: readable during a busy shift */
+#appPanel #operations .ops-group {padding:13px 14px 14px;border:1px solid #e0eaf0;
+  border-radius:13px;background:#fbfdff;min-width:0}
+#appPanel #operations .ops-group:first-child {border-top:1px solid #e0eaf0}
+#appPanel #operations .ops-group h4 {font-size:13px;color:#2b536a;line-height:1.55;
+  display:flex;justify-content:space-between;align-items:center;gap:8px;margin:0 0 8px}
+#appPanel #operations .ops-group h4 .pill {margin-left:auto;border-radius:999px;
+  background:#e7f1f5;color:#356477;font-size:11px;padding:5px 9px}
+#appPanel #operations .ops-entry {margin:8px 0 0;padding:13px 14px;border:1px solid #e1edf1;
+  background:white;border-radius:11px;box-shadow:0 1px 5px rgba(15,55,75,.035);overflow-wrap:anywhere}
+#appPanel #operations .ops-entry strong {color:#1d4157;font-size:15px;margin-bottom:6px;line-height:1.5}
+#appPanel #operations .ops-entry > span {font-size:15px;font-weight:700;color:#164f69;word-break:break-word}
+#appPanel #operations .ops-entry small {color:#677f90;font-size:11px;line-height:1.55;margin-top:5px}
+#appPanel #operations .ops-blank {border:1px dashed #d8e4eb;border-radius:9px;
+  background:#f6fafc;padding:13px;color:#78909e;text-align:center;font-size:12px}
+#appPanel #operations .ops-actions {display:flex;flex-wrap:wrap;gap:7px;margin-top:9px;align-items:center}
+#appPanel #operations .ops-actions .btn {min-height:34px;border-radius:9px;padding:7px 11px;font-size:12px;
+  font-weight:750;display:inline-flex;align-items:center;justify-content:center;text-decoration:none}
+#appPanel #operations .ops-actions a[href^="tel:"] {background:#e6f7f2;border:1px solid #b8e4d7;color:#176752}
+#appPanel #operations .ops-actions a[href^="tel:"]:hover {background:#d3efe6}
+#appPanel #operations .ops-actions button[data-ops-action="copy"] {background:#eef6fc;border-color:#c7dfed;color:#205f82}
+#appPanel #operations .ops-actions .danger {background:#fffafa;border-color:#f3d8db}
+
+/* Fast Track has a distinct, restrained warm accent */
+#appPanel #operations #opsContactsList .ops-group {background:#fffcf8;border-color:#f0e4d7}
+#appPanel #operations #opsContactsList .ops-group h4 {color:#865526}
+#appPanel #operations #opsContactsList .ops-group h4 .pill {background:#fff0db;color:#956021}
+#appPanel #operations #opsContactsList .ops-entry {border-color:#f2e6da}
+
+/* Forms */
+#appPanel #operations .ops-form-card {scroll-margin-top:20px}
+#appPanel #operations .ops-form {display:grid;gap:13px;margin-top:11px}
+#appPanel #operations .ops-form .field {gap:7px;font-weight:700;color:#3d6075}
+#appPanel #operations .ops-form .field select,
+#appPanel #operations .ops-form .field input {min-height:45px;border:1px solid #cadae4;
+  border-radius:10px;background:#fbfdff;transition:border-color .15s,box-shadow .15s}
+#appPanel #operations .ops-form .field select:focus,
+#appPanel #operations .ops-form .field input:focus {border-color:#1685a0;outline:2px solid #b5e6ee;outline-offset:1px}
+#appPanel #operations #opsRosterSave,
+#appPanel #operations #opsContactSave {min-height:44px;min-width:150px;border-radius:10px;
+  background:#0d728a;border-color:#0d728a;box-shadow:0 3px 9px rgba(13,114,138,.12)}
+#appPanel #operations #opsRosterSave:hover,
+#appPanel #operations #opsContactSave:hover {background:#095c71}
+#appPanel #operations .ops-directory-buttons {padding:10px;background:#f5f9fc;
+  border:1px solid #e4edf2;border-radius:11px;gap:7px}
+#appPanel #operations .ops-directory-buttons .btn {background:#fff}
+#appPanel #operations .ops-directory-editor {border:1px solid #a9d6e1;
+  background:#edf8fa;border-radius:12px;padding:14px}
+#appPanel #operations .ops-directory-editor h4 {font-size:14px;margin:0;color:#125c71}
+#appPanel #operations #opsRoleHelp {background:#eff8fa;color:#3b6e7c;padding:9px 11px;
+  border-radius:9px;font-size:12px;line-height:1.6;margin:0}
+#appPanel #operations #opsAdminPanel {border:1px solid var(--ops-line);border-radius:16px}
+#appPanel #operations #opsAdminPanel summary {cursor:pointer;color:#285574;padding:3px 0}
+
+/* Dashboard home page preview */
+body #opsDashboardPreview {border:1px solid #d1e3eb;border-radius:19px;
+  background:linear-gradient(180deg,#fff 0%,#f9fcfe 100%);
+  padding:22px;box-shadow:0 8px 25px rgba(17,59,80,.06);overflow:hidden}
+body #opsDashboardPreview > .top {gap:13px;border-bottom:1px solid #e0ebf1;padding-bottom:15px;margin-bottom:15px}
+body #opsDashboardPreview > .top h3 {font-size:19px;margin:0 0 5px;color:#194962}
+body #opsDashboardPreview > .top .muted {margin:0;font-size:13px}
+body #opsDashboardPreview #opsOpenFull {min-height:41px;border-radius:10px;background:#0e7288;border-color:#0e7288}
+body #opsDashboardPreview .ops-preview-body {grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}
+body #opsDashboardPreview .ops-preview-body > section {background:white;border:1px solid #e1edf3;
+  padding:14px;border-radius:12px;min-width:0}
+body #opsDashboardPreview .ops-preview-body > section:nth-child(2) {border-color:#f1e3d3;background:#fffcf8}
+body #opsDashboardPreview .ops-preview-body h4 {margin:0 0 9px;padding-bottom:9px;border-bottom:1px solid #e5edf2;
+  color:#23546a;font-size:14px}
+body #opsDashboardPreview .ops-preview-body > section:nth-child(2) h4 {color:#865526;border-color:#f1e5d9}
+body #opsDashboardPreview .ops-mini-people {border-top:1px solid #edf1f4;padding:9px 0;font-size:12px;line-height:1.75;overflow-wrap:anywhere}
+body #opsDashboardPreview .ops-mini-people:first-of-type {border-top:0}
+body #opsDashboardPreview .ops-mini-people strong {color:#244b60}
+body #opsDashboardPreview .ops-mini-people .ops-actions .btn {font-size:11px;padding:5px 8px;
+  min-height:30px;border-radius:8px;text-decoration:none}
+
+/* Touch-friendly mobile layout without horizontal page scrolling */
+@media(max-width:920px) {
+  #appPanel #operations .ops-columns {grid-template-columns:1fr}
+}
+@media(max-width:700px) {
+  #appPanel #operations > .top {padding:21px 17px;min-height:0;align-items:stretch}
+  #appPanel #operations > .top h2 {font-size:23px}
+  #appPanel #operations > .top #opsRefresh {width:100%}
+  #appPanel #operations .ops-columns > .card {padding:16px 14px}
+  #appPanel #operations .ops-filters {align-items:stretch;flex-direction:column}
+  #appPanel #operations .ops-filters .field {flex:1 1 auto;width:100%;min-width:0}
+  #appPanel #operations #opsToday {width:100%}
+  #appPanel #operations .ops-entry {padding:12px}
+  #appPanel #operations .ops-actions .btn {min-height:39px;padding:8px 11px}
+  #appPanel #operations #opsRosterSave,
+  #appPanel #operations #opsContactSave {width:100%}
+  body #opsDashboardPreview {padding:16px 13px}
+  body #opsDashboardPreview .ops-preview-body {grid-template-columns:1fr;gap:10px}
+  body #opsDashboardPreview #opsOpenFull {width:100%}
+}
+@media(prefers-reduced-motion:reduce) {
+  #appPanel #operations .ops-form .field select,
+  #appPanel #operations .ops-form .field input {transition:none}
+}
+@media print {
+  /* Preserve the existing app's print rules; the operations panel is non-printing. */
+  body #opsDashboardPreview {display:none!important}
+}
