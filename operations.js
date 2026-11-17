@@ -1,4 +1,4 @@
-/* EMS Suandok Daily Operations Dashboard v2.1 — role-filtered staff directory + printable report
+/* EMS Suandok Daily Operations Dashboard v2.2 — role ordering + printable report
    Add-on to the existing classic-script app.js. Requires Supabase SQL migration.
    Does NOT contain service keys, patient data, or modifications to other modules. */
 (function () {
@@ -8,7 +8,7 @@
     sb: null, user: null, profile: null, admin: false,
     roles: [], types: [], roster: [], contacts: [], editors: [], directory: [],
     selectedDate: '', selectedShift: 'morning', loadedDate: '', loadedShift: '',
-    rosterEditId: null, contactEditId: null, directoryEditId: null, ready: false, requestId: 0
+    rosterEditId: null, contactEditId: null, directoryEditId: null, orderBusy: false, ready: false, requestId: 0
   };
   const $o = (id) => document.getElementById(id);
   const html = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({
@@ -87,8 +87,8 @@
          <button class="btn" type="button" id="opsToday">วันนี้ / เวรปัจจุบัน</button>
        </div><p class="muted">เวรดึกใช้วันที่สิ้นสุดเวร (23:45 วันก่อน–08:00) · ทุกเวลาตามประเทศไทย</p></div>
        <div class="two ops-columns section">
-         <div class="card"><h3>👥 EMS Daily Roster</h3><div id="opsRosterList"></div></div>
-         <div class="card"><h3>☎ Fast Track Contacts</h3><div id="opsContactsList"></div></div>
+         <div class="card"><h3>👥 EMS Daily Roster <button class="btn small ops-sort-open" type="button" id="opsOrderRoles" hidden>↕ จัดลำดับตำแหน่ง</button></h3><div id="opsRosterList"></div></div>
+         <div class="card"><h3>☎ Fast Track Contacts <button class="btn small ops-sort-open" type="button" id="opsOrderTypes" hidden>↕ จัดลำดับประเภท</button></h3><div id="opsContactsList"></div></div>
        </div>
        <div class="two ops-columns section">
          <div class="card ops-form-card"><h3 id="opsRosterFormTitle">ลงชื่อปฏิบัติงาน</h3>
@@ -155,6 +155,14 @@
       #operations > .top #opsPrint{background:rgba(255,255,255,.94);border:1px solid #b6e4ee;color:#12546b;border-radius:10px;min-height:42px;font-weight:700}
       #operations > .top #opsPrint:hover{background:#e8f7fa}
       @media(max-width:700px){#operations > .top .ops-header-actions{width:100%;justify-content:stretch}#operations > .top #opsPrint{flex:1 1 160px}}
+      #operations .ops-sort-open:not([hidden]){display:inline-flex;float:right;align-items:center;justify-content:center;
+        min-height:32px;padding:5px 10px;margin:0 0 0 10px;font-size:12px;border:1px solid #b9d8e6;
+        background:#edf7fb;color:#1b607a;border-radius:8px;white-space:nowrap}
+      #operations .ops-sort-open[hidden]{display:none!important}
+      #operations .ops-order-buttons{display:inline-flex;gap:5px;align-items:center}
+      #operations .ops-order-buttons .btn{min-width:34px;min-height:32px;font-size:16px;padding:3px 7px}
+      #operations .ops-order-buttons .btn:disabled{opacity:.35;cursor:not-allowed}
+      @media(max-width:700px){#operations .ops-sort-open:not([hidden]){float:none;display:flex;margin:8px 0 0;width:max-content}}
       #operations .ops-filters{align-items:end;gap:14px}#operations .ops-filters .field{min-width:170px}
       #operations .ops-form{display:grid;gap:11px;margin-top:13px}
       #operations .ops-form-card{align-self:start}#operations .ops-admin-select{padding:10px;border:1px solid #c9d8e5;border-radius:9px;min-width:220px}
@@ -183,6 +191,8 @@
     $o('opsShift').addEventListener('change', filtersChanged);
     $o('opsRefresh').addEventListener('click', refresh);
     $o('opsPrint').addEventListener('click', printDashboard);
+    $o('opsOrderRoles').addEventListener('click', () => openOrderManager('role'));
+    $o('opsOrderTypes').addEventListener('click', () => openOrderManager('type'));
     $o('opsToday').addEventListener('click', () => {
       const now=bangkokSelection(); state.selectedDate=now.date; state.selectedShift=now.shift;
       $o('opsDate').value=now.date; $o('opsShift').value=now.shift; refresh();
@@ -384,6 +394,8 @@
     const editable = canEditContacts();
     $o('opsContactEditorPanel').hidden = !editable;
     $o('opsAdminPanel').hidden = !state.admin;
+    $o('opsOrderRoles').hidden = !state.admin;
+    $o('opsOrderTypes').hidden = !state.admin;
     if (state.admin) renderAdmin();
   }
   async function refresh() {
@@ -650,6 +662,8 @@
       catch(err){showError(err);}return;
     }
     if(!state.admin)return;
+    const moveMatch=/^move-(role|type)-(up|down)$/.exec(action);
+    if(moveMatch)return moveDisplayOrder(moveMatch[1],id,moveMatch[2],button);
     const item=state.roles.find(r=>r.id===id),type=state.types.find(t=>t.id===id);
     try {
       let result;
@@ -688,13 +702,47 @@
       if(error)throw error;await readConfigs();}
     catch(err){showError(err);}
   }
+  function openOrderManager(kind) {
+    if(!state.admin)return;
+    const panel=$o('opsAdminPanel');
+    panel.open=true;
+    const list=$o(kind==='role'?'opsRoleAdminList':'opsTypeAdminList');
+    list?.scrollIntoView({behavior:'smooth',block:'center'});
+    notify('ใช้ปุ่ม ↑ / ↓ เพื่อจัดลำดับ แล้วระบบจะบันทึกอัตโนมัติ');
+  }
+  async function moveDisplayOrder(kind,id,direction,button) {
+    if(!state.admin || state.orderBusy)return;
+    const list=kind==='role'?state.roles:state.types;
+    if(!list.some(row=>row.id===id))return notify('ไม่พบรายการที่เลือก',true);
+    state.orderBusy=true;
+    button.disabled=true;
+    try{
+      // Atomic reorder: an Admin-only, security-invoker Supabase RPC installed by SQL.
+      const {error}=await state.sb.rpc('ems_ops_move_order',{
+        p_collection:kind,p_item_id:id,p_move:direction
+      });
+      if(error)throw error;
+      await readConfigs();
+      renderAll(); // The home preview and print report use the same sort_order.
+      notify('บันทึกลำดับเรียบร้อย สมาชิกทุกคนจะเห็นลำดับใหม่');
+    }catch(err){showError(err);}
+    finally{state.orderBusy=false;button.disabled=false;}
+  }
   function renderAdmin(){
-    $o('opsRoleAdminList').innerHTML=roleOrder(state.roles).map(r=>`<div class="ops-admin-row"><span>${html(r.name)} ${r.active?'':'· ปิดใช้งาน'}</span>
-      <div class="ops-actions"><button class="btn small" type="button" data-ops-action="rename-role" data-id="${html(r.id)}">แก้ชื่อ</button>
-      <button class="btn small" type="button" data-ops-action="toggle-role" data-id="${html(r.id)}">${r.active?'ปิด':'เปิด'}</button></div></div>`).join('');
-    $o('opsTypeAdminList').innerHTML=roleOrder(state.types).map(t=>`<div class="ops-admin-row"><span>${html(t.name)} ${t.active?'':'· ปิดใช้งาน'}</span>
-      <div class="ops-actions"><button class="btn small" type="button" data-ops-action="rename-type" data-id="${html(t.id)}">แก้ชื่อ</button>
-      <button class="btn small" type="button" data-ops-action="toggle-type" data-id="${html(t.id)}">${t.active?'ปิด':'เปิด'}</button></div></div>`).join('');
+    const roles=roleOrder(state.roles);
+    const types=roleOrder(state.types);
+    $o('opsRoleAdminList').innerHTML=roles.map((r,i)=>`<div class="ops-admin-row"><span>${i+1}. ${html(r.name)} ${r.active?'':'· ปิดใช้งาน'}</span>
+      <div class="ops-actions"><span class="ops-order-buttons">
+        <button class="btn small" type="button" data-ops-action="move-role-up" data-id="${html(r.id)}" aria-label="เลื่อน ${html(r.name)} ขึ้น" title="เลื่อนขึ้น" ${i===0?'disabled':''}>↑</button>
+        <button class="btn small" type="button" data-ops-action="move-role-down" data-id="${html(r.id)}" aria-label="เลื่อน ${html(r.name)} ลง" title="เลื่อนลง" ${i===roles.length-1?'disabled':''}>↓</button>
+        </span><button class="btn small" type="button" data-ops-action="rename-role" data-id="${html(r.id)}">แก้ชื่อ</button>
+        <button class="btn small" type="button" data-ops-action="toggle-role" data-id="${html(r.id)}">${r.active?'ปิด':'เปิด'}</button></div></div>`).join('');
+    $o('opsTypeAdminList').innerHTML=types.map((t,i)=>`<div class="ops-admin-row"><span>${i+1}. ${html(t.name)} ${t.active?'':'· ปิดใช้งาน'}</span>
+      <div class="ops-actions"><span class="ops-order-buttons">
+        <button class="btn small" type="button" data-ops-action="move-type-up" data-id="${html(t.id)}" aria-label="เลื่อน ${html(t.name)} ขึ้น" title="เลื่อนขึ้น" ${i===0?'disabled':''}>↑</button>
+        <button class="btn small" type="button" data-ops-action="move-type-down" data-id="${html(t.id)}" aria-label="เลื่อน ${html(t.name)} ลง" title="เลื่อนลง" ${i===types.length-1?'disabled':''}>↓</button>
+        </span><button class="btn small" type="button" data-ops-action="rename-type" data-id="${html(t.id)}">แก้ชื่อ</button>
+        <button class="btn small" type="button" data-ops-action="toggle-type" data-id="${html(t.id)}">${t.active?'ปิด':'เปิด'}</button></div></div>`).join('');
     // 'profiles' is the existing app's admin-only, RLS-protected personnel collection.
     const people=(typeof profiles !== 'undefined' && Array.isArray(profiles) ? profiles : [])
       .filter(p=>p.approval_status==='approved' && !state.editors.some(e=>e.user_id===p.id));
@@ -711,7 +759,7 @@
   function onLogout(){
     state.requestId++;
     state.sb=null;state.user=null;state.profile=null;state.admin=false;
-    state.roster=[];state.contacts=[];state.roles=[];state.types=[];state.editors=[];state.directory=[];
+    state.roster=[];state.contacts=[];state.roles=[];state.types=[];state.editors=[];state.directory=[];state.orderBusy=false;
     if($o('opsPreviewBody'))$o('opsPreviewBody').textContent='กรุณาเข้าสู่ระบบ';
     if($o('opsRosterList'))$o('opsRosterList').textContent='';
     if($o('opsContactsList'))$o('opsContactsList').textContent='';
