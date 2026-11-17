@@ -1,6 +1,6 @@
-/* EMS Suandok – Registration enhancements v1
+/* EMS Suandok – Registration and login enhancements v1.1
  * Add Driver to registration profession list.
- * Accessible show/hide password control for registration.
+ * Accessible show/hide password controls for registration and login.
  * Additive enhancement: does not modify authentication or Supabase logic.
  */
 (() => {
@@ -54,6 +54,7 @@
   function init() {
     addDriverOption();
     addPasswordToggle('regPassword');
+    addPasswordToggle('loginPass');
   }
 
   const style = document.createElement('style');
