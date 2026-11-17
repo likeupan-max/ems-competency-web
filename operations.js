@@ -1,4 +1,4 @@
-/* EMS Suandok Daily Operations Dashboard v2.0 — role-filtered staff directory
+/* EMS Suandok Daily Operations Dashboard v2.1 — role-filtered staff directory + printable report
    Add-on to the existing classic-script app.js. Requires Supabase SQL migration.
    Does NOT contain service keys, patient data, or modifications to other modules. */
 (function () {
@@ -7,7 +7,7 @@
   const state = {
     sb: null, user: null, profile: null, admin: false,
     roles: [], types: [], roster: [], contacts: [], editors: [], directory: [],
-    selectedDate: '', selectedShift: 'morning',
+    selectedDate: '', selectedShift: 'morning', loadedDate: '', loadedShift: '',
     rosterEditId: null, contactEditId: null, directoryEditId: null, ready: false, requestId: 0
   };
   const $o = (id) => document.getElementById(id);
@@ -77,7 +77,8 @@
     panel.className = 'tab'; panel.id = 'operations';
     panel.innerHTML = `<div class="top"><div><h2>EMS Daily Operations Dashboard</h2>
        <p class="muted">รายชื่อเวรและเบอร์แพทย์ Fast Track สำหรับผู้ใช้งานที่ผ่านการอนุมัติทุกตำแหน่ง</p></div>
-       <button class="btn" type="button" id="opsRefresh">↻ รีเฟรช</button></div>
+       <div class="ops-header-actions"><button class="btn" type="button" id="opsPrint">🖨 พิมพ์ / PDF</button>
+       <button class="btn" type="button" id="opsRefresh">↻ รีเฟรช</button></div></div>
        <div class="card section"><div class="row ops-filters">
          <label class="field">วันที่ปฏิบัติงาน<input type="date" id="opsDate"></label>
          <label class="field">เวร<select id="opsShift">
@@ -150,6 +151,10 @@
 
     const style = document.createElement('style');
     style.textContent = `
+      #operations > .top .ops-header-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap;justify-content:flex-end}
+      #operations > .top #opsPrint{background:rgba(255,255,255,.94);border:1px solid #b6e4ee;color:#12546b;border-radius:10px;min-height:42px;font-weight:700}
+      #operations > .top #opsPrint:hover{background:#e8f7fa}
+      @media(max-width:700px){#operations > .top .ops-header-actions{width:100%;justify-content:stretch}#operations > .top #opsPrint{flex:1 1 160px}}
       #operations .ops-filters{align-items:end;gap:14px}#operations .ops-filters .field{min-width:170px}
       #operations .ops-form{display:grid;gap:11px;margin-top:13px}
       #operations .ops-form-card{align-self:start}#operations .ops-admin-select{padding:10px;border:1px solid #c9d8e5;border-radius:9px;min-width:220px}
@@ -177,6 +182,7 @@
     $o('opsDate').addEventListener('change', filtersChanged);
     $o('opsShift').addEventListener('change', filtersChanged);
     $o('opsRefresh').addEventListener('click', refresh);
+    $o('opsPrint').addEventListener('click', printDashboard);
     $o('opsToday').addEventListener('click', () => {
       const now=bangkokSelection(); state.selectedDate=now.date; state.selectedShift=now.shift;
       $o('opsDate').value=now.date; $o('opsShift').value=now.shift; refresh();
@@ -394,9 +400,102 @@
       if (c.error) throw c.error;
       if (myRequest !== state.requestId) return;
       state.roster=r.data||[];state.contacts=c.data||[];
+      state.loadedDate=req.duty_date;state.loadedShift=req.shift;
       renderAll();
     } catch(e) { showError(e); }
   }
+  // Print a standalone, clean report rather than the full management page.
+  // Data is taken from the same approved-account dashboard state already loaded.
+  function printDashboard() {
+    if (!state.user || state.profile?.approval_status !== 'approved')
+      return notify('กรุณาเข้าสู่ระบบด้วยบัญชีที่ได้รับอนุมัติ', true);
+    if (state.loadedDate !== state.selectedDate || state.loadedShift !== state.selectedShift)
+      return notify('ข้อมูลวันที่/เวรนี้ยังโหลดไม่เสร็จ กรุณากดรีเฟรชแล้วลองใหม่', true);
+
+    const roles = roleOrder(state.roles.filter(r => r.active || state.roster.some(p => p.role_id === r.id)));
+    const types = roleOrder(state.types.filter(t => t.active || state.contacts.some(p => p.type_id === t.id)));
+    let rosterRows = '';
+    for (const role of roles) {
+      const entries = state.roster.filter(r => r.role_id === role.id);
+      if (!entries.length) {
+        rosterRows += `<tr class="empty"><td>${html(role.name)}</td><td colspan="3">— ยังไม่มีผู้ลงชื่อ —</td></tr>`;
+      } else {
+        for (const [i, r] of entries.entries()) {
+          rosterRows += `<tr><td>${i === 0 ? html(role.name) : ''}</td>
+            <td>${html(r.display_name)}</td><td class="phone">${html(r.phone || '—')}</td>
+            <td>${html(r.note || '—')}</td></tr>`;
+        }
+      }
+    }
+    let contactRows = '';
+    for (const type of types) {
+      const entries = state.contacts.filter(c => c.type_id === type.id);
+      if (!entries.length) {
+        contactRows += `<tr class="empty"><td>${html(type.name)}</td><td colspan="3">— ยังไม่มีเบอร์ติดต่อ —</td></tr>`;
+      } else {
+        for (const [i, c] of entries.entries()) {
+          contactRows += `<tr><td>${i === 0 ? html(type.name) : ''}</td>
+            <td>นพ./พญ. ${html(c.doctor_name)}</td><td class="phone">${html(c.phone)}</td>
+            <td>${html(c.note || '—')}</td></tr>`;
+        }
+      }
+    }
+    const generatedAt = new Date().toLocaleString('th-TH', {
+      timeZone: 'Asia/Bangkok', dateStyle: 'medium', timeStyle: 'short'
+    });
+    const documentTitle = `EMS Daily Operations – ${state.selectedDate} – ${shiftText[state.selectedShift]}`;
+    const report = `<!doctype html><html lang="th"><head><meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>${html(documentTitle)}</title>
+      <style>
+        @page{size:A4 portrait;margin:13mm 12mm}
+        *{box-sizing:border-box}
+        body{margin:0;background:#fff;color:#202f3e;font-family:Arial,"Noto Sans Thai",Tahoma,sans-serif;font-size:11px;line-height:1.48}
+        .report-header{border-bottom:3px solid #126c84;padding-bottom:13px;margin-bottom:18px}
+        .eyebrow{color:#14748b;font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase}
+        h1{font-size:22px;line-height:1.24;margin:5px 0 12px;color:#143d56}
+        .meta{display:flex;flex-wrap:wrap;gap:10px 22px;font-size:12px}
+        .meta strong{color:#1d536c}
+        h2{font-size:16px;color:#174e68;margin:20px 0 8px;page-break-after:avoid}
+        table{width:100%;border-collapse:collapse;table-layout:fixed}
+        th,td{text-align:left;vertical-align:top;padding:7px 8px;border:1px solid #d4e1e8;overflow-wrap:anywhere}
+        th{background:#e9f3f7;color:#244d62;font-weight:700}
+        tbody tr:nth-child(even){background:#f8fbfc}
+        tr{break-inside:avoid;page-break-inside:avoid}
+        .empty{color:#7c8b97}
+        .phone{white-space:normal;font-variant-numeric:tabular-nums}
+        .footnote{font-size:10px;color:#6b7d89;margin-top:18px;border-top:1px solid #d9e5e9;padding-top:8px}
+        .print-actions{display:flex;gap:8px;margin:12px 0 20px}
+        button{border:0;border-radius:8px;background:#126c84;color:#fff;padding:10px 16px;cursor:pointer}
+        @media print{.print-actions{display:none!important}body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+      </style></head><body>
+      <div class="print-actions"><button onclick="window.print()">🖨 พิมพ์ / บันทึก PDF</button></div>
+      <header class="report-header"><div class="eyebrow">EMS SUANDOK · OPERATIONS</div>
+      <h1>EMS Daily Operations Dashboard</h1>
+      <div class="meta"><div><strong>วันที่:</strong> ${html(fmt(state.selectedDate))}</div>
+      <div><strong>เวร:</strong> ${html(shiftText[state.selectedShift])}</div>
+      <div><strong>ข้อมูล ณ:</strong> ${html(generatedAt)} น.</div></div></header>
+      <h2>👥 EMS Daily Roster (${state.roster.length} คน)</h2>
+      <table aria-label="EMS Daily Roster"><colgroup><col style="width:25%"><col style="width:30%"><col style="width:19%"><col style="width:26%"></colgroup>
+      <thead><tr><th>ตำแหน่ง</th><th>ชื่อผู้ปฏิบัติงาน</th><th>เบอร์โทรศัพท์</th><th>หมายเหตุ</th></tr></thead>
+      <tbody>${rosterRows || '<tr><td colspan="4">ไม่มีข้อมูล</td></tr>'}</tbody></table>
+      <h2>☎ Fast Track Contacts (${state.contacts.length} รายชื่อ)</h2>
+      <table aria-label="Fast Track Contacts"><colgroup><col style="width:25%"><col style="width:30%"><col style="width:19%"><col style="width:26%"></colgroup>
+      <thead><tr><th>ประเภท</th><th>แพทย์เวร</th><th>เบอร์โทรศัพท์</th><th>หมายเหตุ</th></tr></thead>
+      <tbody>${contactRows || '<tr><td colspan="4">ไม่มีข้อมูล</td></tr>'}</tbody></table>
+      <p class="footnote">รายงานแสดงข้อมูลของวันที่และเวรที่เลือก ณ เวลาที่พิมพ์ · เวรดึกใช้วันที่สิ้นสุดเวร (23:45 วันก่อน–08:00 น.) · เวลาประเทศไทย</p>
+      </body></html>`;
+    const popup = window.open('', '_blank');
+    if (!popup) return notify('เบราว์เซอร์บล็อกหน้าต่างพิมพ์ กรุณาอนุญาต Pop-ups แล้วลองอีกครั้ง', true);
+    popup.document.open();
+    popup.document.write(report);
+    popup.document.close();
+    popup.focus();
+    // Delayed automatic dialog allows the new document to finish laying out.
+    // The visible print button in the new tab is a fallback on restrictive browsers.
+    popup.setTimeout(() => popup.print(), 350);
+  }
+
   function rosterActionButtons(row) {
     if (!state.user || state.profile?.approval_status!=='approved') return '';
     return `<button class="btn small" type="button" data-ops-action="edit-roster" data-id="${html(row.id)}">แก้ไข</button>
