@@ -1,4 +1,4 @@
-/* EMS Suandok Daily Operations Dashboard v1.0
+/* EMS Suandok Daily Operations Dashboard v2.0 — role-filtered staff directory
    Add-on to the existing classic-script app.js. Requires Supabase SQL migration.
    Does NOT contain service keys, patient data, or modifications to other modules. */
 (function () {
@@ -6,9 +6,9 @@
 
   const state = {
     sb: null, user: null, profile: null, admin: false,
-    roles: [], types: [], roster: [], contacts: [], editors: [],
+    roles: [], types: [], roster: [], contacts: [], editors: [], directory: [],
     selectedDate: '', selectedShift: 'morning',
-    rosterEditId: null, contactEditId: null, ready: false, requestId: 0
+    rosterEditId: null, contactEditId: null, directoryEditId: null, ready: false, requestId: 0
   };
   const $o = (id) => document.getElementById(id);
   const html = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({
@@ -29,6 +29,7 @@
   const cleanPhone = (str) => String(str || '').replace(/[^0-9+]/g, '');
   const canEditContacts = () => state.admin || state.editors.some(x => x.user_id === state.user?.id);
   const myName = () => [state.profile?.first_name, state.profile?.last_name].filter(Boolean).join(' ').trim();
+  const dateTimeText = x => x ? new Date(x).toLocaleString('th-TH',{timeZone:'Asia/Bangkok',dateStyle:'short',timeStyle:'short'}) : '';
   const isValidDate = x => /^\d{4}-\d{2}-\d{2}$/.test(x) && !Number.isNaN(new Date(x+'T12:00:00').getTime());
 
   function bangkokSelection() {
@@ -91,15 +92,31 @@
        <div class="two ops-columns section">
          <div class="card ops-form-card"><h3 id="opsRosterFormTitle">ลงชื่อปฏิบัติงาน</h3>
            <form id="opsRosterForm" class="ops-form">
-             <label class="field">ตำแหน่งหน้าที่<select id="opsRoleSelect" required></select></label>
-             <label class="field">ชื่อผู้ปฏิบัติงาน<input id="opsStaffName" maxlength="150" required></label>
-             <p class="muted" id="opsRoleHelp">ระบบจะใช้ชื่อจากบัญชีของคุณ</p>
-             <label class="field">เบอร์โทร (ถ้ามี)<input id="opsStaffPhone" type="tel" maxlength="30" autocomplete="tel"></label>
+             <label class="field">1. ตำแหน่งหน้าที่<select id="opsRoleSelect" required></select></label>
+             <label class="field">2. เลือกรายชื่อเจ้าหน้าที่<select id="opsStaffSelect" required></select></label>
+             <div class="ops-actions ops-directory-buttons">
+               <button class="btn small" type="button" id="opsUseMyName">ใช้ชื่อของฉัน</button>
+               <button class="btn small" type="button" id="opsDirectoryAdd">+ เพิ่มชื่อ</button>
+               <button class="btn small" type="button" id="opsDirectoryEdit">แก้ไขชื่อ</button>
+               <button class="btn small danger" type="button" id="opsDirectoryDelete">ลบชื่อ</button>
+             </div>
+             <p class="muted" id="opsRoleHelp">เลือกรายชื่อในตำแหน่งนี้ หรือเลือกอื่น ๆ เพื่อกรอกชื่อเอง</p>
+             <div id="opsDirectoryEditor" class="ops-directory-editor hidden">
+               <h4 id="opsDirectoryFormTitle">เพิ่มชื่อใน Dropdown</h4>
+               <div id="opsDirectoryForm" class="ops-form">
+                 <label class="field">ชื่อ–นามสกุล<input id="opsDirectoryName" maxlength="150"></label>
+                 <label class="field">เบอร์โทรในทะเบียน (ถ้ามี)<input id="opsDirectoryPhone" type="tel" maxlength="30"></label>
+                 <div class="row"><button class="btn primary" type="button" id="opsDirectorySave">บันทึกชื่อ</button>
+                   <button class="btn" type="button" id="opsDirectoryCancel">ยกเลิก</button></div>
+               </div>
+             </div>
+             <label class="field">3. ชื่อผู้ปฏิบัติงาน<input id="opsStaffName" maxlength="150" required></label>
+             <label class="field">4. เบอร์โทร (แก้ไขเฉพาะเวรนี้ได้)<input id="opsStaffPhone" type="tel" maxlength="30" autocomplete="tel"></label>
              <label class="field">หมายเหตุเวร (ไม่ใส่ข้อมูลผู้ป่วย)<input id="opsRosterNote" maxlength="250"></label>
              <div class="row"><button class="btn primary" type="submit" id="opsRosterSave">บันทึกเวร</button>
                <button class="btn hidden" id="opsRosterCancel" type="button">ยกเลิกแก้ไข</button></div>
            </form>
-           <p class="muted">Staff แก้ไข/ลบรายการที่ตนบันทึกได้ Admin จัดการได้ทุกคน</p>
+           <p class="muted">สมาชิกที่ได้รับอนุมัติทุกคนเพิ่ม แก้ไข และลบรายการเวร รวมถึงจัดการรายชื่อใน Dropdown ได้ · การลบชื่อจาก Dropdown ไม่ลบประวัติเวรเดิม</p>
          </div>
          <div class="card ops-form-card" id="opsContactEditorPanel">
            <h3 id="opsContactFormTitle">กรอกแพทย์เวร Fast Track</h3>
@@ -117,7 +134,6 @@
          <div class="two ops-columns section">
            <div><h3>จัดการตำแหน่ง Roster</h3><form id="opsAddRole" class="ops-form">
              <label class="field">ชื่อตำแหน่ง<input id="opsRoleName" maxlength="100" required></label>
-             <label class="ops-check"><input type="checkbox" id="opsRoleManual"> อนุญาตกรอกชื่ออิสระ (เช่น Fellow / นักศึกษา)</label>
              <button class="btn" type="submit">+ เพิ่มตำแหน่ง</button></form>
              <div id="opsRoleAdminList" class="section"></div></div>
            <div><h3>ประเภท Fast Track</h3><form id="opsAddType" class="ops-form">
@@ -137,6 +153,10 @@
       #operations .ops-filters{align-items:end;gap:14px}#operations .ops-filters .field{min-width:170px}
       #operations .ops-form{display:grid;gap:11px;margin-top:13px}
       #operations .ops-form-card{align-self:start}#operations .ops-admin-select{padding:10px;border:1px solid #c9d8e5;border-radius:9px;min-width:220px}
+      #operations .ops-directory-buttons{gap:7px}
+      #operations .ops-directory-editor{padding:12px;border:1px solid #c9d8e5;background:#f1f7fb;border-radius:11px}
+      #operations .ops-directory-editor h4{margin:0;color:#23536e}
+      #operations .ops-directory-editor .ops-form{margin-top:8px}
       .ops-group{padding:11px 0;border-top:1px solid #e4edf3}.ops-group:first-child{border-top:0}
       .ops-group h4{font-size:14px;margin:0 0 8px;color:#23536e}.ops-entry{padding:8px 10px;margin:6px 0;background:#f3f8fc;border-radius:9px}
       .ops-entry strong{display:block;margin-bottom:3px}.ops-entry small{display:block;color:#657f90;overflow-wrap:anywhere}
@@ -161,7 +181,14 @@
       const now=bangkokSelection(); state.selectedDate=now.date; state.selectedShift=now.shift;
       $o('opsDate').value=now.date; $o('opsShift').value=now.shift; refresh();
     });
-    $o('opsRoleSelect').addEventListener('change', updateRoleMode);
+    $o('opsRoleSelect').addEventListener('change', () => {updateRoleMode();closeDirectoryEditor();});
+    $o('opsStaffSelect').addEventListener('change', applyStaffSelection);
+    $o('opsUseMyName').addEventListener('click', () => { $o('opsStaffSelect').value = 'self'; applyStaffSelection(); });
+    $o('opsDirectoryAdd').addEventListener('click', () => openDirectoryEditor('add'));
+    $o('opsDirectoryEdit').addEventListener('click', () => openDirectoryEditor('edit'));
+    $o('opsDirectoryDelete').addEventListener('click', deleteDirectoryEntry);
+    $o('opsDirectoryCancel').addEventListener('click', closeDirectoryEditor);
+    $o('opsDirectorySave').addEventListener('click', submitDirectory);
     $o('opsRosterForm').addEventListener('submit', submitRoster);
     $o('opsRosterCancel').addEventListener('click', resetRosterForm);
     $o('opsContactForm').addEventListener('submit', submitContact);
@@ -182,38 +209,149 @@
     await refresh();
   }
 
-  function updateRoleMode() {
-    const role = state.roles.find(r => r.id === $o('opsRoleSelect').value);
-    const manual = !!role?.allows_manual_name;
-    $o('opsStaffName').readOnly = !manual;
-    if (!state.rosterEditId) {
-      if (!manual) $o('opsStaffName').value = myName();
-      else $o('opsStaffName').value = '';
+  function directoryForRole() {
+    const roleId=$o('opsRoleSelect')?.value;
+    return state.directory.filter(p=>p.active && p.role_id===roleId)
+      .sort((a,b)=>a.display_name.localeCompare(b.display_name,'th'));
+  }
+  function updateDirectoryButtons() {
+    const id=$o('opsStaffSelect')?.value?.startsWith('person:')
+      ? $o('opsStaffSelect').value.slice(7) : '';
+    const exists=directoryForRole().some(p=>p.id===id);
+    $o('opsDirectoryEdit').disabled=!exists;
+    $o('opsDirectoryDelete').disabled=!exists;
+  }
+  function fillStaffNames(preserve=false) {
+    const previous=preserve ? $o('opsStaffSelect').value : '';
+    const entries=directoryForRole();
+    $o('opsStaffSelect').innerHTML='<option value="">— เลือกรายชื่อ —</option>'+
+      entries.map(p=>`<option value="person:${html(p.id)}">${html(p.display_name)}</option>`).join('')+
+      '<option value="self">ใช้ชื่อของฉัน</option><option value="manual">อื่น ๆ — พิมพ์ชื่อเอง</option>';
+    if (previous && Array.from($o('opsStaffSelect').options).some(o=>o.value===previous)) {
+      $o('opsStaffSelect').value=previous;
+    } else {
+      $o('opsStaffSelect').value='';
     }
-    $o('opsRoleHelp').textContent = manual
-      ? 'ตำแหน่งนี้อนุญาตให้ระบุชื่อด้วยตนเอง (ผู้บันทึกจะแสดงในประวัติ)'
-      : 'ตำแหน่งนี้ใช้ชื่อจากบัญชีผู้ลงชื่อเท่านั้น';
+    updateDirectoryButtons();
+  }
+  function applyStaffSelection() {
+    const choice=$o('opsStaffSelect').value;
+    const entry=choice.startsWith('person:')
+      ? state.directory.find(x=>x.id===choice.slice(7) && x.active && x.role_id===$o('opsRoleSelect').value) : null;
+    const manual=choice==='manual';
+    $o('opsStaffName').readOnly=!manual;
+    if(choice==='self') {
+      $o('opsStaffName').value=myName();
+      $o('opsStaffPhone').value=state.profile?.phone_number||'';
+    } else if (entry) {
+      $o('opsStaffName').value=entry.display_name;
+      $o('opsStaffPhone').value=entry.phone||'';
+    } else {
+      $o('opsStaffName').value='';
+      $o('opsStaffPhone').value='';
+    }
+    $o('opsRoleHelp').textContent=manual
+      ? 'พิมพ์ชื่อและเบอร์เฉพาะเวรนี้ได้ โดยไม่เพิ่มลงทะเบียนกลาง'
+      : choice==='self' ? 'ใช้ชื่อจากบัญชีของคุณ และเบอร์จากโปรไฟล์ (แก้เบอร์เฉพาะเวรได้)'
+      : entry ? 'เติมชื่อและเบอร์จากทะเบียนกลางแล้ว (เบอร์แก้เฉพาะเวรได้)'
+      : 'เลือกรายชื่อในตำแหน่งนี้ หรือเลือกอื่น ๆ เพื่อกรอกชื่อเอง';
+    updateDirectoryButtons();
+  }
+  function updateRoleMode() {
+    fillStaffNames(false);
+    applyStaffSelection();
   }
   function fillSelectors() {
-    const roles = state.roles.filter(r => r.active).sort((a,b) => a.sort_order-b.sort_order || a.name.localeCompare(b.name,'th'));
-    const types = state.types.filter(t => t.active).sort((a,b) => a.sort_order-b.sort_order || a.name.localeCompare(b.name,'th'));
-    const prevRole = $o('opsRoleSelect').value, prevType=$o('opsTypeSelect').value;
-    $o('opsRoleSelect').innerHTML = roles.map(r=>`<option value="${html(r.id)}">${html(r.name)}</option>`).join('');
-    $o('opsTypeSelect').innerHTML = types.map(t=>`<option value="${html(t.id)}">${html(t.name)}</option>`).join('');
-    if (roles.some(r=>r.id===prevRole)) $o('opsRoleSelect').value=prevRole;
-    if (types.some(t=>t.id===prevType)) $o('opsTypeSelect').value=prevType;
-    updateRoleMode();
-    $o('opsRosterSave').disabled = !roles.length;
-    $o('opsContactSave').disabled = !types.length;
+    const roles=state.roles.filter(r=>r.active)
+      .sort((a,b)=>a.sort_order-b.sort_order||a.name.localeCompare(b.name,'th'));
+    const types=state.types.filter(t=>t.active)
+      .sort((a,b)=>a.sort_order-b.sort_order||a.name.localeCompare(b.name,'th'));
+    const prevRole=$o('opsRoleSelect').value, prevType=$o('opsTypeSelect').value;
+    const prevStaff=$o('opsStaffSelect').value;
+    $o('opsRoleSelect').innerHTML=roles.map(r=>`<option value="${html(r.id)}">${html(r.name)}</option>`).join('');
+    $o('opsTypeSelect').innerHTML=types.map(t=>`<option value="${html(t.id)}">${html(t.name)}</option>`).join('');
+    if(roles.some(r=>r.id===prevRole))$o('opsRoleSelect').value=prevRole;
+    if(types.some(t=>t.id===prevType))$o('opsTypeSelect').value=prevType;
+    fillStaffNames(false);
+    if(prevStaff && Array.from($o('opsStaffSelect').options).some(o=>o.value===prevStaff)){
+      $o('opsStaffSelect').value=prevStaff;
+    }
+    applyStaffSelection();
+    $o('opsRosterSave').disabled=!roles.length;
+    $o('opsContactSave').disabled=!types.length;
+  }
+  function closeDirectoryEditor() {
+    state.directoryEditId=null;
+    $o('opsDirectoryEditor').classList.add('hidden');
+    $o('opsDirectoryName').value='';$o('opsDirectoryPhone').value='';
+  }
+  function openDirectoryEditor(mode) {
+    const role=state.roles.find(r=>r.id===$o('opsRoleSelect').value && r.active);
+    if(!role)return notify('กรุณาเลือกตำแหน่งก่อน',true);
+    const choice=$o('opsStaffSelect').value;
+    const entry=mode==='edit' && choice.startsWith('person:')
+      ? state.directory.find(p=>p.id===choice.slice(7) && p.role_id===role.id && p.active) : null;
+    if(mode==='edit' && !entry)return notify('กรุณาเลือกชื่อจาก Dropdown ที่ต้องการแก้ไข',true);
+    state.directoryEditId=entry?.id||null;
+    $o('opsDirectoryFormTitle').textContent=(entry?'แก้ไข':'เพิ่ม')+'ชื่อใน Dropdown · '+role.name;
+    $o('opsDirectoryName').value=entry?.display_name||'';
+    $o('opsDirectoryPhone').value=entry?.phone||'';
+    $o('opsDirectoryEditor').classList.remove('hidden');
+    $o('opsDirectoryName').focus();
+  }
+  async function submitDirectory(e) {
+    e.preventDefault();if(!state.user)return;
+    const role=state.roles.find(r=>r.id===$o('opsRoleSelect').value && r.active);
+    if(!role)return notify('กรุณาเลือกตำแหน่งก่อน',true);
+    const name=$o('opsDirectoryName').value.trim(),phone=$o('opsDirectoryPhone').value.trim();
+    if(name.length<2)return notify('กรุณากรอกชื่ออย่างน้อย 2 ตัวอักษร',true);
+    const button=$o('opsDirectorySave');button.disabled=true;
+    try{
+      let selectedId=state.directoryEditId;
+      if(selectedId){
+        const {error}=await state.sb.from('ems_ops_staff_directory')
+          .update({display_name:name,phone:phone||null}).eq('id',selectedId);
+        if(error)throw error;
+      }else{
+        const {data,error}=await state.sb.from('ems_ops_staff_directory')
+          .insert({role_id:role.id,display_name:name,phone:phone||null,created_by:state.user.id})
+          .select('id').single();
+        if(error)throw error;selectedId=data.id;
+      }
+      closeDirectoryEditor();
+      await readConfigs();
+      $o('opsRoleSelect').value=role.id;
+      fillStaffNames(false);
+      $o('opsStaffSelect').value='person:'+selectedId;
+      applyStaffSelection();
+      notify('บันทึกรายชื่อใน Dropdown เรียบร้อย');
+    }catch(err){showError(err);}finally{button.disabled=false;}
+  }
+  async function deleteDirectoryEntry() {
+    const choice=$o('opsStaffSelect').value;
+    if(!choice.startsWith('person:'))return;
+    const entry=directoryForRole().find(p=>p.id===choice.slice(7));
+    if(!entry)return;
+    if(!confirm(`ลบ ${entry.display_name} ออกจาก Dropdown?\nประวัติเวรเดิมจะยังคงอยู่`))return;
+    try{
+      const {error}=await state.sb.from('ems_ops_staff_directory')
+        .update({active:false}).eq('id',entry.id);
+      if(error)throw error;
+      closeDirectoryEditor();
+      await readConfigs();
+      $o('opsStaffSelect').value='';applyStaffSelection();
+      notify('ลบชื่อจาก Dropdown แล้ว (ไม่กระทบรายการเวรเดิม)');
+    }catch(err){showError(err);}
   }
   function resetRosterForm() {
-    if (!$o('opsRosterForm')) return;
-    state.rosterEditId = null;
+    if(!$o('opsRosterForm'))return;
+    state.rosterEditId=null;
     $o('opsRosterForm').reset();
-    $o('opsRosterFormTitle').textContent = 'ลงชื่อปฏิบัติงาน';
+    $o('opsRosterFormTitle').textContent='ลงชื่อปฏิบัติงาน';
     $o('opsRosterCancel').classList.add('hidden');
-    $o('opsStaffPhone').value = state.profile?.phone_number || '';
+    closeDirectoryEditor();
     fillSelectors();
+    $o('opsStaffSelect').value='self';applyStaffSelection();
   }
   function resetContactForm() {
     if (!$o('opsContactForm')) return;
@@ -230,10 +368,12 @@
     return data || [];
   }
   async function readConfigs() {
-    const [roles,types,editors] = await Promise.all([
-      queryList('ems_ops_roles'),queryList('ems_ops_fast_track_types'),queryList('ems_ops_contact_editors','granted_at')
+    const [roles,types,editors,directory] = await Promise.all([
+      queryList('ems_ops_roles'),queryList('ems_ops_fast_track_types'),
+      queryList('ems_ops_contact_editors','granted_at'),
+      queryList('ems_ops_staff_directory','display_name')
     ]);
-    state.roles=roles;state.types=types;state.editors=editors;
+    state.roles=roles;state.types=types;state.editors=editors;state.directory=directory;
     fillSelectors();
     const editable = canEditContacts();
     $o('opsContactEditorPanel').hidden = !editable;
@@ -258,7 +398,7 @@
     } catch(e) { showError(e); }
   }
   function rosterActionButtons(row) {
-    if (!state.admin && row.created_by !== state.user.id) return '';
+    if (!state.user || state.profile?.approval_status!=='approved') return '';
     return `<button class="btn small" type="button" data-ops-action="edit-roster" data-id="${html(row.id)}">แก้ไข</button>
       <button class="btn small danger" type="button" data-ops-action="delete-roster" data-id="${html(row.id)}">ลบ</button>`;
   }
@@ -281,6 +421,7 @@
       return `<section class="ops-group"><h4>${html(role.name)} <span class="pill neutral">${list.length} คน</span></h4>
        ${list.length ? list.map(row => `<div class="ops-entry"><strong>${html(row.display_name)}</strong>
          ${row.phone?phoneControls(row.phone):''}${row.note?`<small>${html(row.note)}</small>`:''}
+         ${row.last_edited_by_name?`<small>แก้ไขล่าสุดโดย ${html(row.last_edited_by_name)} · ${html(dateTimeText(row.updated_at))}</small>`:''}
          <div class="ops-actions">${rosterActionButtons(row)}</div></div>`).join('')
          : '<div class="ops-blank">ยังไม่มีผู้ลงชื่อในเวรนี้</div>'}</section>`;
     }).join('') || '<p class="muted">ยังไม่มีตำแหน่งที่เปิดใช้งาน</p>';
@@ -308,26 +449,32 @@
   }
 
   async function submitRoster(e) {
-    e.preventDefault(); if (!state.user) return;
+    e.preventDefault();if(!state.user)return;
     const role=state.roles.find(r=>r.id===$o('opsRoleSelect').value && r.active);
-    if (!role) return notify('กรุณาเลือกตำแหน่งที่เปิดใช้งาน',true);
-    const name=role.allows_manual_name?$o('opsStaffName').value.trim():myName();
-    if (name.length<2) return notify('กรุณาระบุชื่อผู้ปฏิบัติงาน',true);
+    if(!role)return notify('กรุณาเลือกตำแหน่งที่เปิดใช้งาน',true);
+    const choice=$o('opsStaffSelect').value;
+    if(!choice)return notify('กรุณาเลือกชื่อจาก Dropdown หรือเลือกอื่น ๆ',true);
+    const person=choice.startsWith('person:')
+      ? directoryForRole().find(p=>p.id===choice.slice(7)) : null;
+    if(choice.startsWith('person:') && !person)return notify('ชื่อที่เลือกไม่อยู่ในทะเบียนแล้ว กรุณาเลือกใหม่',true);
+    const name=choice==='self'?myName():person?person.display_name:$o('opsStaffName').value.trim();
+    if(name.length<2)return notify('กรุณาระบุชื่อผู้ปฏิบัติงาน',true);
     const previous=state.rosterEditId?state.roster.find(r=>r.id===state.rosterEditId):null;
-    const keepExistingStaff=previous && state.admin && !role.allows_manual_name && previous.staff_user_id && previous.staff_user_id!==state.user.id;
-    const payload = {duty_date:state.selectedDate,shift:state.selectedShift,role_id:role.id,
-      staff_user_id:role.allows_manual_name?null:(keepExistingStaff?previous.staff_user_id:state.user.id),
-      display_name:keepExistingStaff?previous.display_name:name,phone:$o('opsStaffPhone').value.trim()||null,
+    const preserveLinked=previous?.staff_user_id && choice!=='self'
+      && previous.display_name===name && previous.staff_user_id!==state.user.id;
+    const payload={duty_date:state.selectedDate,shift:state.selectedShift,role_id:role.id,
+      staff_user_id:choice==='self'?state.user.id:(preserveLinked?previous.staff_user_id:null),
+      staff_directory_id:person?.id||null,
+      display_name:name,phone:$o('opsStaffPhone').value.trim()||null,
       note:$o('opsRosterNote').value.trim()||null};
     const button=$o('opsRosterSave');button.disabled=true;
-    try {
-      const query = state.rosterEditId
-        ? state.sb.from('ems_ops_roster').update(payload).eq('id',state.rosterEditId)
-        : state.sb.from('ems_ops_roster').insert({...payload,created_by:state.user.id});
-      const {error}=await query;
-      if (error) throw error;
+    try{
+      const query=state.rosterEditId
+        ?state.sb.from('ems_ops_roster').update(payload).eq('id',state.rosterEditId)
+        :state.sb.from('ems_ops_roster').insert({...payload,created_by:state.user.id});
+      const {error}=await query;if(error)throw error;
       notify('บันทึกรายชื่อเวรเรียบร้อย');resetRosterForm();await refresh();
-    } catch (err) {showError(err);} finally {button.disabled=false;}
+    }catch(err){showError(err);}finally{button.disabled=false;}
   }
   async function submitContact(e) {
     e.preventDefault();if (!canEditContacts()) return notify('ไม่มีสิทธิ์แก้ไข Fast Track',true);
@@ -345,19 +492,26 @@
   }
   function openRosterEdit(id) {
     const row=state.roster.find(r=>r.id===id);
-    if(!row || (!state.admin && row.created_by!==state.user.id))return;
+    if(!row || !state.user || state.profile?.approval_status!=='approved')return;
     state.rosterEditId=row.id;
     if(!$o('opsRoleSelect').querySelector(`option[value="${CSS.escape(row.role_id)}"]`)){
       const opt=document.createElement('option');opt.value=row.role_id;
       opt.textContent=state.roles.find(r=>r.id===row.role_id)?.name||'ตำแหน่งเดิม';$o('opsRoleSelect').add(opt);
     }
     $o('opsRoleSelect').value=row.role_id;
+    fillStaffNames(false);
+    const matched=directoryForRole().find(p=>p.id===row.staff_directory_id)
+      || directoryForRole().find(p=>p.display_name===row.display_name);
+    const choice=row.staff_user_id===state.user.id?'self':matched && matched.display_name===row.display_name?'person:'+matched.id:'manual';
+    $o('opsStaffSelect').value=choice;
+    applyStaffSelection();
+    // A roster is a dated snapshot: preserve its saved contact number on edit.
+    $o('opsStaffPhone').value=row.phone||'';
     $o('opsStaffName').value=row.display_name;
-    $o('opsStaffPhone').value=row.phone||'';$o('opsRosterNote').value=row.note||'';
-    const role=state.roles.find(r=>r.id===row.role_id);
-    $o('opsStaffName').readOnly=!role?.allows_manual_name;
-    $o('opsRoleHelp').textContent=role?.allows_manual_name?'กรอกชื่อผู้ปฏิบัติงาน':'ตำแหน่งนี้ใช้ชื่อผู้ลงชื่อ';
-    $o('opsRosterFormTitle').textContent='แก้ไขรายชื่อเวร';$o('opsRosterCancel').classList.remove('hidden');
+    $o('opsRosterNote').value=row.note||'';
+    $o('opsRosterFormTitle').textContent='แก้ไขรายชื่อเวร';
+    $o('opsRosterCancel').classList.remove('hidden');
+    closeDirectoryEditor();
     $o('opsRosterForm').scrollIntoView({behavior:'smooth',block:'center'});
   }
   function openContactEdit(id){
@@ -386,7 +540,7 @@
     if(action==='edit-roster')return openRosterEdit(id);
     if(action==='edit-contact')return openContactEdit(id);
     const roster=state.roster.find(r=>r.id===id), contact=state.contacts.find(r=>r.id===id);
-    if(action==='delete-roster' && roster && (state.admin || roster.created_by===state.user.id)){
+    if(action==='delete-roster' && roster && state.user && state.profile?.approval_status==='approved'){
       if(!confirm('ลบรายชื่อเวรนี้ใช่หรือไม่?'))return;
       try{const {error}=await state.sb.from('ems_ops_roster').delete().eq('id',id);if(error)throw error;await refresh();}
       catch(err){showError(err);}return;
@@ -416,7 +570,7 @@
   async function addRole(e){
     e.preventDefault();if(!state.admin)return;
     const name=$o('opsRoleName').value.trim();if(name.length<2)return;
-    try{const {error}=await state.sb.from('ems_ops_roles').insert({name,allows_manual_name:$o('opsRoleManual').checked});
+    try{const {error}=await state.sb.from('ems_ops_roles').insert({name,allows_manual_name:true});
       if(error)throw error;e.target.reset();await readConfigs();await refresh();}
     catch(err){showError(err);}
   }
@@ -436,7 +590,7 @@
     catch(err){showError(err);}
   }
   function renderAdmin(){
-    $o('opsRoleAdminList').innerHTML=roleOrder(state.roles).map(r=>`<div class="ops-admin-row"><span>${html(r.name)} ${r.allows_manual_name?'· ชื่ออิสระ':''} ${r.active?'':'· ปิดใช้งาน'}</span>
+    $o('opsRoleAdminList').innerHTML=roleOrder(state.roles).map(r=>`<div class="ops-admin-row"><span>${html(r.name)} ${r.active?'':'· ปิดใช้งาน'}</span>
       <div class="ops-actions"><button class="btn small" type="button" data-ops-action="rename-role" data-id="${html(r.id)}">แก้ชื่อ</button>
       <button class="btn small" type="button" data-ops-action="toggle-role" data-id="${html(r.id)}">${r.active?'ปิด':'เปิด'}</button></div></div>`).join('');
     $o('opsTypeAdminList').innerHTML=roleOrder(state.types).map(t=>`<div class="ops-admin-row"><span>${html(t.name)} ${t.active?'':'· ปิดใช้งาน'}</span>
@@ -458,7 +612,7 @@
   function onLogout(){
     state.requestId++;
     state.sb=null;state.user=null;state.profile=null;state.admin=false;
-    state.roster=[];state.contacts=[];state.roles=[];state.types=[];state.editors=[];
+    state.roster=[];state.contacts=[];state.roles=[];state.types=[];state.editors=[];state.directory=[];
     if($o('opsPreviewBody'))$o('opsPreviewBody').textContent='กรุณาเข้าสู่ระบบ';
     if($o('opsRosterList'))$o('opsRosterList').textContent='';
     if($o('opsContactsList'))$o('opsContactsList').textContent='';
