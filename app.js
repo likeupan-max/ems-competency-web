@@ -102,7 +102,12 @@ for (const id of ['certificates', 'procedures']) {
   )?.classList.toggle('hidden', isAdmin());
 }
 
-if (isAdmin()) tab('dashboard');
+// Keep Admin on the current settings page after saving and reloading data.
+// Redirect only if the selected tab is unavailable to Admin.
+const activeTabBeforeRefresh = document.querySelector('.tab.active')?.id;
+if (isAdmin() && (!activeTabBeforeRefresh || ['certificates', 'procedures'].includes(activeTabBeforeRefresh))) {
+  tab('dashboard');
+}
 
     [profiles,courses,catalog,certificates,logs]=await Promise.all([
       isAdmin()?fetchAll('profiles'):Promise.resolve([mine]),fetchAll('certificate_courses'),fetchAll('procedure_catalog'),fetchAll('certificates'),fetchAll('procedure_logs')]);
