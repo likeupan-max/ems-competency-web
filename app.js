@@ -128,7 +128,8 @@ const scopeAllows = (x,p) => x.position_scope==='BOTH'||x.position_scope===p.pos
 const courseName = c => c.course_id?(courses.find(x=>x.id===c.course_id)?.name||'ไม่พบหลักสูตร'):c.custom_course;
 function certificateLatest(){const m=new Map();for(const c of [...certificates].sort((a,b)=>(a.trained_until||a.trained_on).localeCompare(b.trained_until||b.trained_on)||a.created_at.localeCompare(b.created_at))){m.set(`${c.person_id}|${(courseName(c)||'').toLowerCase().trim()}`,c)}return [...m.values()];}
 function certificateStatus(c){if(c.no_expiration)return {label:'ไม่มีวันหมดอายุ',kind:'neutral'};let d=dateDiff(c.expires_on,todayISO());return d<0?{label:`หมดอายุ ${-d} วัน`,kind:'bad'}:c.expires_on<=sixMonthsFrom(todayISO())?{label:`เหลือ ${d} วัน`,kind:'warn'}:{label:'ยังไม่ถึงกำหนด',kind:''};}
-function procedureAlerts(){let result=[],today=todayISO();for(const p of profiles.filter(p=>p.approval_status==='approved'))for(const item of catalog.filter(x=>x.active&&scopeAllows(x,p))){let eligible=logs.filter(x=>x.person_id===p.id&&x.procedure_id===item.id&&x.outcome==='success'&&(x.exposure_type==='real'||item.count_simulation));eligible.sort((a,b)=>b.performed_on.localeCompare(a.performed_on));let last=eligible[0];if(!last){result.push({person:p,procedure:item,last:null,over:null,never:true});continue;}let days=dateDiff(today,last.performed_on),over=days-item.interval_days;if(over>0)result.push({person:p,procedure:item,last,over,never:false});}return result.sort((a,b)=>Number(b.never)-Number(a.never)||(b.over||0)-(a.over||0));}
+function procedureAlerts(){let result=[],today=todayISO();for(const p of 
+profiles.filter(p=>p.approval_status==='approved' && p.access_role!=='admin'))for(const item of catalog.filter(x=>x.active&&scopeAllows(x,p))){let eligible=logs.filter(x=>x.person_id===p.id&&x.procedure_id===item.id&&x.outcome==='success'&&(x.exposure_type==='real'||item.count_simulation));eligible.sort((a,b)=>b.performed_on.localeCompare(a.performed_on));let last=eligible[0];if(!last){result.push({person:p,procedure:item,last:null,over:null,never:true});continue;}let days=dateDiff(today,last.performed_on),over=days-item.interval_days;if(over>0)result.push({person:p,procedure:item,last,over,never:false});}return result.sort((a,b)=>Number(b.never)-Number(a.never)||(b.over||0)-(a.over||0));}
 
 // Summarize competence by person + procedure without changing existing database records.
 const plusDaysISO = (iso, days) => {
@@ -149,7 +150,7 @@ function procedureOverview(){
  }
  for(const list of history.values())list.sort(logMoreRecent);
  const output=[];
- for(const person of profiles.filter(p=>p.approval_status==='approved')){
+for(const person of profiles.filter(p=>p.approval_status==='approved' && p.access_role!=='admin')){
    for(const procedure of catalog){
      const list=history.get(`${person.id}|${procedure.id}`)||[];
      if(!(procedure.active&&scopeAllows(procedure,person)) && !list.length)continue;
@@ -176,9 +177,9 @@ const formatLastAction = x => x?`${prettyDate(x.performed_on)}${x.shift?' · '+x
 
 function render(){
  const latest=certificateLatest();
- const notices=latest.filter(c=>!c.no_expiration&&c.expires_on<=sixMonthsFrom(todayISO())).sort((a,b)=>a.expires_on.localeCompare(b.expires_on));
+const notices=latest.filter(c=>!c.no_expiration&&c.expires_on<=sixMonthsFrom(todayISO())&&profiles.some(p=>p.id===c.person_id&&p.approval_status==='approved'&&p.access_role!=='admin'));
  const overdue=procedureAlerts();
- const approved=profiles.filter(p=>p.approval_status==='approved');
+const approved=profiles.filter(p=>p.approval_status==='approved' && p.access_role!=='admin');
  const visibleLatest=latest.filter(c=>approved.some(p=>p.id===c.person_id));
  const overview=procedureOverview();
  $('dashboardTitle').textContent=isAdmin()?'Dashboard ภาพรวมหน่วยงาน':'Dashboard ของฉัน';
