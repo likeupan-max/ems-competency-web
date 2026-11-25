@@ -96,6 +96,14 @@ async function load(){
     $('startup').hidden=true;$('authWrap').classList.add('hidden');$('appPanel').hidden=false;$('mainNav').hidden=false;$('logoutBtn').classList.remove('hidden');
     $('identity').textContent=`${mine.first_name} ${mine.last_name} · ${mine.position} · ${isAdmin()?'Admin':'Staff'}`;
     document.querySelectorAll('.admin-only').forEach(el=>el.hidden=!isAdmin());
+for (const id of ['certificates', 'procedures']) {
+  document.querySelector(
+    `#mainNav [data-tab="${id}"]`
+  )?.classList.toggle('hidden', isAdmin());
+}
+
+if (isAdmin()) tab('dashboard');
+
     [profiles,courses,catalog,certificates,logs]=await Promise.all([
       isAdmin()?fetchAll('profiles'):Promise.resolve([mine]),fetchAll('certificate_courses'),fetchAll('procedure_catalog'),fetchAll('certificates'),fetchAll('procedure_logs')]);
     certificates=certificates.filter(c=>!c.deleted_at);
