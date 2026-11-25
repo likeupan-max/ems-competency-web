@@ -13,7 +13,7 @@
   const SHORT = {training:'อบรม',deployment:'ออกหน่วย',teaching:'การสอน',other:'อื่น ๆ'};
   const state = {
     sb:null,user:null,profile:null,topics:[],entries:[],mounted:false,request:0,
-    editingTopic:null,editingEntry:null,filterCat:'all',search:'',onlyMine:false,loading:false
+    editingTopic:null,editingEntry:null,filterCat:'all',search:'',onlyMine:false,loading:false,admin:false
   };
   const el = (id) => document.getElementById(id);
   const esc = (x) => String(x ?? '').replace(/[&<>"']/g, x => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]));
@@ -79,7 +79,7 @@
               <button class="btn" type="button" id="eaTopicCancel" hidden>ยกเลิกแก้ไข</button></div>
           </form>
         </div>
-        <div class="card ea-create-card">
+        <div class="card ea-create-card" id="eaEntryCard">
           <h3 id="eaEntryHeading">บันทึกกิจกรรมของฉัน</h3>
           <p class="muted" id="eaEntrySubtitle">ชื่อผู้เข้าร่วมจะดึงจากบัญชีที่ Login โดยอัตโนมัติ</p>
           <form id="eaEntryForm" class="ea-form">
@@ -106,7 +106,7 @@
             <option value="training">อบรมทั่วไป</option><option value="deployment">ออกหน่วย</option>
             <option value="teaching">การสอน</option><option value="other">อื่น ๆ</option></select></label>
           <label class="field ea-search">ค้นหาหัวข้อ<input id="eaSearch" type="search" placeholder="ค้นหาชื่อกิจกรรม..."></label>
-          <label class="ea-check"><input id="eaOnlyMine" type="checkbox"> เฉพาะกิจกรรมที่ฉันเคยเข้าร่วม</label>
+          <label class="ea-check" id="eaOnlyMineWrap"><input id="eaOnlyMine" type="checkbox"> เฉพาะกิจกรรมที่ฉันเคยเข้าร่วม</label>
         </div>
         <div id="eaTopicCards" class="ea-topic-cards"></div>
       </div>
@@ -152,6 +152,7 @@
     #emsActivities .ea-input-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
     #emsActivities .ea-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px}
     #emsActivities .ea-filters{display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin:16px 0}
+    #emsActivities #eaEntryCard[hidden], #emsActivities #eaOnlyMineWrap[hidden]{display:none!important}
     #emsActivities .ea-filters .field{min-width:170px}
     #emsActivities .ea-filters .ea-search{flex:1 1 220px}
     #emsActivities .ea-check{display:flex;align-items:center;gap:8px;font-size:13px;padding:12px 4px}
@@ -231,6 +232,7 @@
     el('eaEntrySubtitle').textContent=`ชื่อผู้เข้าร่วม: ${myName()||'บัญชีที่เข้าสู่ระบบ'}`;
     el('eaEntrySave').textContent='+ บันทึกการเข้าร่วม';el('eaEntryCancel').hidden=true;
     fillTopicOptions();
+    if(el('eaEntryCard'))el('eaEntryCard').hidden=!!state.admin;
   }
   async function submitTopic(e){
     e.preventDefault();if(!state.sb)return;
@@ -249,6 +251,7 @@
   }
   async function submitEntry(e){
     e.preventDefault();if(!state.sb)return;
+    if(state.admin&&!state.editingEntry)return notify('บัญชี Admin เป็นบัญชีดูแลระบบ ไม่สามารถลงชื่อเข้าร่วมกิจกรรมได้',true);
     const topic_id=el('eaEntryTopic').value;
     const topic=state.topics.find(t=>t.id===topic_id);
     if(!topic)return notify('กรุณาเลือกหัวข้อกิจกรรม',true);
@@ -297,7 +300,7 @@
       <h4 class="ea-topic-title">${esc(t.title)}</h4>
       ${t.description?`<p class="ea-muted">${esc(t.description)}</p>`:''}</div>
       <div class="ea-row-actions">
-        <button class="btn small" type="button" data-ea-action="join" data-id="${esc(t.id)}">+ ลงชื่อของฉัน</button>
+        ${state.admin?'':`<button class="btn small" type="button" data-ea-action="join" data-id="${esc(t.id)}">+ ลงชื่อของฉัน</button>`}
         <button class="btn small" type="button" data-ea-action="edit-topic" data-id="${esc(t.id)}">แก้ไขหัวข้อ</button>
         <button class="btn small danger" type="button" data-ea-action="delete-topic" data-id="${esc(t.id)}">ลบหัวข้อ</button>
       </div></div>
@@ -351,6 +354,7 @@
     const b=e.target.closest('button[data-ea-action]');if(!b||!state.user)return;
     const action=b.dataset.eaAction,id=b.dataset.id;
     if(action==='join'){
+      if(state.admin)return notify('บัญชี Admin ไม่ใช้สำหรับลงชื่อเข้าร่วมกิจกรรม',true);
       const t=state.topics.find(x=>x.id===id);if(!t)return;
       resetEntry();el('eaEntryCategory').value=t.category;fillTopicOptions();el('eaEntryTopic').value=t.id;toFormEntry();return;
     }
@@ -366,6 +370,8 @@
       const r=state.entries.find(x=>x.id===id);if(!r)return;
       const t=state.topics.find(x=>x.id===r.topic_id);if(!t)return;
       resetEntry();state.editingEntry=r.id;
+      // Admin may correct a staff record, but never create their own participation.
+      el('eaEntryCard').hidden=false;
       el('eaEntryCategory').value=t.category;fillTopicOptions();el('eaEntryTopic').value=t.id;
       el('eaDate').value=r.activity_date;el('eaEndDate').value=r.end_date||'';
       el('eaVenue').value=r.venue||'';el('eaNote').value=r.note||'';
@@ -396,11 +402,14 @@
   async function onLogin(sb,user,profile){
     if(!sb||!user||!profile||profile.approval_status!=='approved')return;
     mount();state.sb=sb;state.user=user;state.profile=profile;
+    state.admin=profile.access_role==='admin';
+    state.onlyMine=false;el('eaOnlyMine').checked=false;
+    el('eaOnlyMineWrap').hidden=state.admin;
     resetEntry();await refresh();
   }
   function onLogout(){
     state.request++;
-    state.sb=null;state.user=null;state.profile=null;state.topics=[];state.entries=[];
+    state.sb=null;state.user=null;state.profile=null;state.topics=[];state.entries=[];state.admin=false;state.onlyMine=false;
     if(el('eaMiniText'))el('eaMiniText').textContent='กรุณาเข้าสู่ระบบ';
     if(el('eaTopicCards'))el('eaTopicCards').textContent='';
     if(el('eaEntryList'))el('eaEntryList').textContent='';
