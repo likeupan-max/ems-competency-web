@@ -104,6 +104,15 @@ async function load(){
     if(window.EMS_EQUIPMENT)await window.EMS_EQUIPMENT.onLogin();
     if(window.EMS_OPERATIONS)await window.EMS_OPERATIONS.onLogin(sb,current,mine);
 
+if (window.EMS_ACTIVITIES) {
+  try {
+    await window.EMS_ACTIVITIES.onLogin(sb, current, mine);
+  } catch (e) {
+    console.error('[Activities login]', e);
+    toast('โหลดกิจกรรมไม่สำเร็จ', true);
+  }
+}
+
   } catch(e){reportError(e);if(!mine||mine.approval_status!=='approved')showAuthPanel();}
 }
 function tab(id){if(['members','settings','equipmentAdmin'].includes(id)&&!isAdmin())return;document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.id===id));document.querySelectorAll('#mainNav [data-tab]').forEach(x=>x.classList.toggle('active',x.dataset.tab===id));window.scrollTo({top:0,behavior:'smooth'});if(window.EMS_EQUIPMENT)window.EMS_EQUIPMENT.onTab(id);}
@@ -376,7 +385,8 @@ $('otpResetForm').addEventListener('submit', async (e) => {
   }
 });
 
- async function logout(){if(window.EMS_EQUIPMENT)window.EMS_EQUIPMENT.onLogout();if(window.EMS_OPERATIONS)window.EMS_OPERATIONS.onLogout();await sb.auth.signOut();current=null;mine=null;profiles=[];courses=[];catalog=[];certificates=[];logs=[];showAuthPanel();$('authCard').classList.remove('hidden');$('pendingCard').classList.add('hidden')}
+ async function logout(){if(window.EMS_EQUIPMENT)window.EMS_EQUIPMENT.onLogout();if(window.EMS_OPERATIONS)window.EMS_OPERATIONS.onLogout();if(window.EMS_ACTIVITIES)window.EMS_ACTIVITIES.onLogout();await sb.auth.signOut();current=null;mine=null;profiles=[];courses=[];catalog=[];certificates=[];logs=[];showAuthPanel();$('authCard').classList.remove('hidden');$('pendingCard').classList.add('hidden')}
+
  $('logoutBtn').onclick=logout;$('pendingLogout').onclick=logout;$('checkApproval').onclick=load;$('refreshBtn').onclick=load;
  $('dashboardPersonFilter').addEventListener('change',render);
  for(const button of document.querySelectorAll('#mainNav [data-tab]'))button.addEventListener('click',()=>tab(button.dataset.tab));
