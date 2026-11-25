@@ -141,6 +141,28 @@
 .profile-avatar-help{font-size:12px;color:#637c91;line-height:1.6;margin:8px 0 0}
 @media(max-width:600px){.profile-avatar-actions .btn{width:100%}}
 @media print{#myProfile{display:none!important}}
+
+/* Procedure Logbook V2 */
+#settings .pv2-editor{display:grid;gap:7px;margin-top:10px}
+#settings .pv2-role-row{background:#f5f9fc;border:1px solid #dce8f1;border-radius:9px;padding:10px}
+#settings .pv2-role-checkbox{display:flex;align-items:center;gap:9px;font-weight:650;color:#254d67}
+#settings .pv2-role-checkbox input{width:17px;height:17px;accent-color:#176c90}
+#settings .pv2-role-config{padding:9px 0 0 25px}
+#settings .pv2-role-config .mini-select{max-width:min(100%,350px);padding:8px;width:100%}
+#settings .pv2-requirements{display:flex;gap:8px;flex-wrap:wrap;padding-top:10px;max-height:160px;overflow:auto}
+#settings .pv2-qual-check{display:flex;align-items:center;gap:6px;border:1px solid #cfdfea;background:white;border-radius:8px;padding:5px 8px;font-size:12px}
+#settings .pv2-procedure-card{border:1px solid #dce8f0;border-radius:11px;padding:13px}
+#settings .pv2-proc-basic{display:grid;grid-template-columns:minmax(140px,1fr) 130px;gap:10px;align-items:end;margin:10px 0}
+#settings .pv2-proc-basic input.mini-input{width:100%;padding:8px}
+#settings .pv2-check-sim{grid-column:1/-1;display:flex;align-items:center;gap:8px;font-size:13px}
+#settings .pv2-details summary{cursor:pointer;color:#196789;font-weight:700;padding:8px 0}
+#settings .pv2-actions{margin-top:12px}
+#settings .pv2-rule-summary{margin:8px 0 0;font-size:12px}
+#settings .pv2-qualification-item{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:9px 0}
+#settings .pv2-qualification-item input.mini-input{width:min(100%,270px);padding:8px}
+#settings #pv2QualificationsSettings .card{box-shadow:none}
+@media(max-width:650px){#settings .pv2-proc-basic{grid-template-columns:1fr}#settings .pv2-role-config{padding-left:0}}
+
 </style>
 <link rel="stylesheet" href="./operations-theme.css?v=design-v1-20261117">
 </head>
@@ -270,22 +292,28 @@
    <div class="card print-scope"><h3 id="certificateListTitle">ประวัติ Certificate ของฉันทั้งหมด (รวมใบเก่า / ใบต่ออายุ)</h3><p class="inline-note">กด “ดาวน์โหลดใบรับรอง” ที่แต่ละรายการที่แนบไฟล์ไว้ เพื่อบันทึก PDF หรือรูปภาพลงอุปกรณ์ของคุณ</p><div class="tablewrap"><table><thead><tr><th>บุคลากร</th><th>หลักสูตร</th><th>ช่วงวันที่อบรม</th><th>วันหมดอายุ</th><th>สถานะ</th><th class="no-print">ดู / ดาวน์โหลดใบรับรอง / ต่ออายุ / แก้ไข / ลบ</th></tr></thead><tbody id="certificateRows"></tbody></table></div></div>
   </section>
   <section class="tab" id="procedures"><div class="top"><div><h2>Procedure Logbook</h2><p class="muted">บันทึกทุกครั้งที่ปฏิบัติ และแยก Real Patient กับ Simulation</p></div><button class="btn no-print" id="printProcedures">⎙ พิมพ์รายงาน</button></div>
-   <div class="card section no-print"><h3 id="procedureFormHeading">บันทึกหัตถการของฉัน</h3><form id="procedureForm"><div class="grid-form"><label class="field">หัตถการ<select id="procedureChoice" required></select></label><label class="field">วันที่ทำ<input id="performedOn" type="date" required></label><label class="field">เวร<select id="performedShift"><option>เช้า</option><option>บ่าย</option><option>ดึก</option></select></label><label class="field">ประเภท<select id="exposureType"><option value="real">Real Patient</option><option value="simulation">Simulation</option></select></label><label class="field">ผลการปฏิบัติ<select id="performedOutcome"><option value="success">สำเร็จ</option><option value="supervised">ทำภายใต้การกำกับ</option><option value="unsuccessful">ไม่สำเร็จ</option></select></label></div><p class="muted">ระบบใช้เฉพาะรายการที่ “สำเร็จ” คำนวณเวลาทบทวน และไม่นับ Simulation เว้นแต่ Admin อนุญาต</p><button class="btn primary" id="saveProcedure" type="submit">บันทึกหัตถการ</button> <button class="btn hidden" id="cancelProcedureEdit" type="button">ยกเลิกการแก้ไข</button></form></div>
+   <div class="card section no-print"><h3 id="procedureFormHeading">บันทึกหัตถการของฉัน</h3><div id="pv2LoadStatus" class="banner warn" hidden></div><p id="pv2EligibilityHint" class="muted"></p><form id="procedureForm"><div class="grid-form"><label class="field">หัตถการ<select id="procedureChoice" required></select></label><label class="field">วันที่ทำ<input id="performedOn" type="date" required></label><label class="field">เวร<select id="performedShift"><option>เช้า</option><option>บ่าย</option><option>ดึก</option></select></label><label class="field">ประเภท<select id="exposureType"><option value="real">Real Patient</option><option value="simulation">Simulation</option></select></label><label class="field">ผลการปฏิบัติ<select id="performedOutcome"><option value="success">สำเร็จ</option><option value="supervised">ทำภายใต้การกำกับ</option><option value="unsuccessful">ไม่สำเร็จ</option></select></label></div><p class="muted">ระบบใช้เฉพาะรายการที่ “สำเร็จ” คำนวณเวลาทบทวน และไม่นับ Simulation เว้นแต่ Admin อนุญาต</p><button class="btn primary" id="saveProcedure" type="submit">บันทึกหัตถการ</button> <button class="btn hidden" id="cancelProcedureEdit" type="button">ยกเลิกการแก้ไข</button></form></div>
    <div class="card section print-scope"><h3>สรุปหัตถการของฉัน (ทำล่าสุดเมื่อไร)</h3><p class="inline-note">แสดงครั้งล่าสุดที่ทำจริง พร้อมแยกครั้งล่าสุดที่นับเพื่อทบทวนทักษะ Real Patient/Simulation ที่ไม่เข้าหลักเกณฑ์จะไม่ถูกนับ</p>
     <div class="tablewrap"><table><thead><tr><th>หัตถการ</th><th>ทำล่าสุด</th><th>ประเภท / ผล</th><th>ล่าสุดที่นับได้</th><th>ครบกำหนดทบทวน</th><th>สถานะ</th></tr></thead><tbody id="procedureSummaryRows"></tbody></table></div></div>
    <div class="card print-scope"><h3>ประวัติการทำหัตถการของฉันทั้งหมด</h3><div class="tablewrap"><table><thead><tr><th>บุคลากร</th><th>หัตถการ</th><th>วันที่</th><th>เวร</th><th>ประเภท</th><th>ผล</th><th class="no-print">แก้ไข / ลบ</th></tr></thead><tbody id="procedureRows"></tbody></table></div></div>
   </section>
   <section class="tab admin-only" id="members"><div class="top"><div><h2>Staff Accounts & Approval</h2><p class="muted">อนุมัติหรือปฏิเสธคำขอสมัครสมาชิก พร้อมตรวจสอบประวัติสถานะ</p></div><button class="btn no-print" id="printMembers">⎙ พิมพ์รายชื่อ</button></div><div class="card section"><h3>คำขอรออนุมัติ <span id="pendingCount" class="pill warn">0</span></h3><div class="tablewrap"><table><thead><tr><th>ชื่อ–นามสกุล</th><th>Username / Email</th><th>ตำแหน่ง</th><th>สมัครเมื่อ</th><th class="no-print">จัดการ</th></tr></thead><tbody id="pendingRows"></tbody></table></div></div><div class="card print-scope"><h3>บุคลากรทั้งหมด</h3><div class="tablewrap"><table><thead><tr><th>ชื่อ–นามสกุล</th><th>Username</th><th>ตำแหน่ง</th><th>สิทธิ์</th><th>สถานะ</th></tr></thead><tbody id="memberRows"></tbody></table></div></div></section>
-  <section class="tab admin-only" id="settings"><div class="top"><div><h2>Admin Settings</h2><p class="muted">เพิ่มหรือปิดใช้งาน Certificate / หัตถการ และกำหนดรอบทบทวน</p></div></div>
+  <section class="tab admin-only" id="settings"><div class="top"><div><h2>Admin Settings</h2><p class="muted">เพิ่มหรือปิดใช้งาน Certificate / หัตถการ และกำหนดรอบทบทวน</p></div></div><div id="pv2AdminStatus" class="banner warn" hidden></div>
    <div class="card section admin-procedure-create">
     <div class="top"><div><h3>+ เพิ่มหัตถการ</h3><p class="muted">เพิ่มประเภทหัตถการใหม่และกำหนดรอบทบทวนสำหรับบุคลากร</p></div></div>
-    <form id="addProcedureForm" class="grid-form no-print"><label class="field">ชื่อหัตถการ<input id="newProcedureName" minlength="2" maxlength="120" required></label><label class="field">รอบทบทวน (วัน)<input id="newProcedureInterval" type="number" min="1" max="3650" value="180" required></label><label class="field">ตำแหน่ง<select id="newProcedureScope"><option value="BOTH">ทุกวิชาชีพ</option><option value="RN">RN</option><option value="PN">PN</option></select></label><label class="field wide"><span><input id="newProcedureSimulation" type="checkbox"> อนุญาตให้นับ Simulation ที่สำเร็จ</span></label><div><button class="btn primary">+ เพิ่มหัตถการ</button></div></form>
+    <form id="addProcedureForm" class="grid-form no-print"><label class="field">ชื่อหัตถการ<input id="newProcedureName" minlength="2" maxlength="120" required></label><label class="field">รอบทบทวน (วัน)<input id="newProcedureInterval" type="number" min="1" max="3650" value="180" required></label><div class="field wide"><strong>ตำแหน่งและ Certification ที่กำหนด</strong><div id="newProcedureV2Rules"></div></div><label class="field wide"><span><input id="newProcedureSimulation" type="checkbox"> อนุญาตให้นับ Simulation ที่สำเร็จ</span></label><div><button class="btn primary">+ เพิ่มหัตถการ</button></div></form>
    </div>
    <div class="two admin-settings-catalogs">
-    <div class="card"><h3>รายการประเภทหัตถการ</h3><div id="procedureCatalogList" class="section"></div></div>
+    <div class="card"><h3>รายการประเภทหัตถการ</h3><p class="muted">แก้ไขรอบทบทวนและการนับ Simulation ได้ตามเดิม พร้อมตั้งกติกาแยกแต่ละตำแหน่ง</p><div id="procedureCatalogList" class="section"></div></div>
     <div class="card"><h3>หลักสูตร Certificate</h3><form id="addCourseForm" class="row section no-print"><input id="newCourseName" class="mini-input" style="width:min(100%,300px)" placeholder="ชื่อหลักสูตรใหม่" minlength="2" maxlength="120" required><button class="btn primary">+ เพิ่ม</button></form><div id="coursesList"></div></div>
    </div>
-   <div class="banner warn section">ค่ารอบทบทวนที่กำหนดในระบบเป็นนโยบายหน่วยงาน ไม่ใช่หลักฐานยืนยันว่าสมรรถนะทางคลินิกผ่านโดยอัตโนมัติ</div>
+   <div class="card section" id="pv2QualificationsSettings"><h3>คุณสมบัติ / Certification สำหรับเงื่อนไขหัตถการ</h3>
+    <p class="muted">Admin พิมพ์ชื่อ Certification เองได้ เช่น ENP, EMT-B, EMR หรือหลักสูตรอื่น ชื่อต้องตรงกับ Certificate ที่ Staff บันทึกไว้</p>
+    <form id="pv2AddQualificationForm" class="row no-print"><input id="pv2NewQualification" class="mini-input" style="width:min(100%,360px)" placeholder="ชื่อ Certification ใหม่" minlength="2" maxlength="120" required><button class="btn primary" type="submit">+ เพิ่มคุณสมบัติ</button></form>
+    <div id="pv2QualificationList" class="section"></div>
+    <p class="muted">การปิดใช้งานจะเก็บชื่อและกติกาเดิม ไม่ลบประวัติ การเปลี่ยนชื่ออาจมีผลต่อการจับคู่ Certificate</p>
+   </div>
+   <div class="banner warn section">ค่ารอบทบทวนและรายการ Certificate เป็นข้อมูลเพื่อการติดตาม ไม่ใช่การอนุญาตปฏิบัติหัตถการนอกขอบเขตวิชาชีพ Admin ไม่ต้องอนุมัติหัตถการรายครั้ง</div>
   </section>
 
   <section class="tab" id="equipmentCheck">
@@ -328,7 +356,8 @@
 <div id="toast" role="status" aria-live="polite"></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="./config.js"></script>
-<script src="./app.js?v=exclude-admin-20261125"></script>
+<script src="./app.js?v=procedure-v2-20261125"></script>
+<script src="./procedure-v2.js?v=procedure-v2-20261125"></script>
 <script src="./equipment.js?v=one-save-optional-notes-20261107"></script>
 <script src="./operations.js?v=order-v2-2-20261117"></script>
 <script src="./registration-enhancements.js?v=driver-eye-login-20261117"></script>

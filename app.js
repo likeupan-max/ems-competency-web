@@ -108,6 +108,7 @@ if (isAdmin()) tab('dashboard');
       isAdmin()?fetchAll('profiles'):Promise.resolve([mine]),fetchAll('certificate_courses'),fetchAll('procedure_catalog'),fetchAll('certificates'),fetchAll('procedure_logs')]);
     certificates=certificates.filter(c=>!c.deleted_at);
     logs=logs.filter(l=>!l.deleted_at);
+    if(window.EMS_PROC_V2)await window.EMS_PROC_V2.onLogin(sb,current,mine,profiles,courses,certificates);
     render();renderMyProfile();
     if(window.EMS_EQUIPMENT)await window.EMS_EQUIPMENT.onLogin();
     if(window.EMS_OPERATIONS)await window.EMS_OPERATIONS.onLogin(sb,current,mine);
@@ -124,7 +125,8 @@ if (window.EMS_ACTIVITIES) {
   } catch(e){reportError(e);if(!mine||mine.approval_status!=='approved')showAuthPanel();}
 }
 function tab(id){if(['members','settings','equipmentAdmin'].includes(id)&&!isAdmin())return;document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.id===id));document.querySelectorAll('#mainNav [data-tab]').forEach(x=>x.classList.toggle('active',x.dataset.tab===id));window.scrollTo({top:0,behavior:'smooth'});if(window.EMS_EQUIPMENT)window.EMS_EQUIPMENT.onTab(id);}
-const scopeAllows = (x,p) => x.position_scope==='BOTH'||x.position_scope===p.position;
+// Qualification-aware V2 rules; fail closed if the new settings cannot be loaded.
+const scopeAllows = (x,p) => window.EMS_PROC_V2?.allows(x,p) === true;
 const courseName = c => c.course_id?(courses.find(x=>x.id===c.course_id)?.name||'ไม่พบหลักสูตร'):c.custom_course;
 function certificateLatest(){const m=new Map();for(const c of [...certificates].sort((a,b)=>(a.trained_until||a.trained_on).localeCompare(b.trained_until||b.trained_on)||a.created_at.localeCompare(b.created_at))){m.set(`${c.person_id}|${(courseName(c)||'').toLowerCase().trim()}`,c)}return [...m.values()];}
 function certificateStatus(c){if(c.no_expiration)return {label:'ไม่มีวันหมดอายุ',kind:'neutral'};let d=dateDiff(c.expires_on,todayISO());return d<0?{label:`หมดอายุ ${-d} วัน`,kind:'bad'}:c.expires_on<=sixMonthsFrom(todayISO())?{label:`เหลือ ${d} วัน`,kind:'warn'}:{label:'ยังไม่ถึงกำหนด',kind:''};}
@@ -153,11 +155,13 @@ function procedureOverview(){
 for(const person of profiles.filter(p=>p.approval_status==='approved' && p.access_role!=='admin')){
    for(const procedure of catalog){
      const list=history.get(`${person.id}|${procedure.id}`)||[];
-     if(!(procedure.active&&scopeAllows(procedure,person)) && !list.length)continue;
+     const allowed=procedure.active&&scopeAllows(procedure,person);
+     if(!allowed && !list.length)continue;
      const lastAttempt=list[0]||null;
      const lastCounted=list.find(x=>x.outcome==='success'&&(x.exposure_type==='real'||procedure.count_simulation))||null;
      let due=null,status;
      if(!procedure.active){status={label:'ปิดใช้งาน',kind:'neutral'};}
+     else if(!allowed){status={label:'ประวัติเดิม — ไม่เข้าเกณฑ์ปัจจุบัน',kind:'neutral'};}
      else if(!lastCounted){status=lastAttempt?{label:'ยังไม่มีครั้งที่นับได้',kind:'warn'}:{label:'ไม่เคยบันทึก',kind:'warn'};}
      else {
        due=plusDaysISO(lastCounted.performed_on,procedure.interval_days);
@@ -218,12 +222,14 @@ const approved=profiles.filter(p=>p.approval_status==='approved' && p.access_rol
 }
 
 function fillCatalogOptions(){let old=$('certificateCourse').value,items=courses.filter(x=>x.active);$('certificateCourse').innerHTML=items.map(x=>`<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('')+'<option value="__other__">อื่น ๆ (โปรดระบุ)</option>';if([...$('certificateCourse').options].some(o=>o.value===old))$('certificateCourse').value=old;toggleCustom();
- let prev=$('procedureChoice').value;let applicable=catalog.filter(x=>x.active&&scopeAllows(x,mine));$('procedureChoice').innerHTML=applicable.map(x=>`<option value="${esc(x.id)}">${esc(x.name)} (ทุก ${x.interval_days} วัน)</option>`).join('');if([...$('procedureChoice').options].some(x=>x.value===prev))$('procedureChoice').value=prev;}
+ let prev=$('procedureChoice').value;let applicable=catalog.filter(x=>x.active&&scopeAllows(x,mine));$('procedureChoice').innerHTML=applicable.length?applicable.map(x=>`<option value="${esc(x.id)}">${esc(x.name)} (ทุก ${x.interval_days} วัน)</option>`).join(''):'<option value="">ไม่พบหัตถการที่เข้าเงื่อนไข</option>';if([...$('procedureChoice').options].some(x=>x.value===prev))$('procedureChoice').value=prev;
+ window.EMS_PROC_V2?.eligibilityHint(mine,catalog);}
 function renderAdmin(){let pending=profiles.filter(x=>x.approval_status==='pending');$('pendingCount').textContent=pending.length;
  $('pendingRows').innerHTML=pending.map(x=>`<tr><td>${esc(x.first_name)} ${esc(x.last_name)}</td><td>${esc(x.username)}<div class="muted">${esc(x.email)}</div></td><td>${esc(x.position)}</td><td>${esc(new Date(x.created_at).toLocaleDateString('th-TH'))}</td><td class="no-print"><div class="actions"><button class="btn small primary" data-member="${esc(x.id)}" data-approval="approved">อนุมัติ</button><button class="btn small danger" data-member="${esc(x.id)}" data-approval="rejected">ไม่อนุมัติ</button></div></td></tr>`).join('')||empty(5,'ไม่มีคำขอรออนุมัติ');
  $('memberRows').innerHTML=profiles.map(p=>`<tr><td>${esc(p.first_name)} ${esc(p.last_name)}</td><td>${esc(p.username)}</td><td>${esc(p.position)}</td><td>${esc(p.access_role)}</td><td>${label(p.approval_status,p.approval_status==='approved'?'':p.approval_status==='pending'?'warn':'bad')}</td></tr>`).join('')||empty(5);
  $('coursesList').innerHTML=courses.map(c=>`<div class="row between section"><span>${esc(c.name)} ${!c.active?label('ปิดใช้งาน','neutral'):''}</span><button class="btn small no-print" data-course-toggle="${esc(c.id)}">${c.active?'ปิดใช้งาน':'เปิดใช้งาน'}</button></div>`).join('');
- $('procedureCatalogList').innerHTML=catalog.map(p=>`<div class="section" style="border-top:1px solid #e6edf4;padding-top:10px"><div class="row between"><strong>${esc(p.name)}</strong>${p.active?'':label('ปิดใช้งาน','neutral')}</div><div class="row section no-print"><label class="muted">รอบ <input class="mini-input" type="number" min="1" max="3650" value="${p.interval_days}" data-interval="${esc(p.id)}"> วัน</label><select class="mini-select" data-scope="${esc(p.id)}"><option value="BOTH" ${p.position_scope==='BOTH'?'selected':''}>RN / PN</option><option value="RN" ${p.position_scope==='RN'?'selected':''}>RN</option><option value="PN" ${p.position_scope==='PN'?'selected':''}>PN</option></select><label class="muted"><input type="checkbox" data-sim="${esc(p.id)}" ${p.count_simulation?'checked':''}> นับ Sim</label><button class="btn small" data-save-procedure="${esc(p.id)}">บันทึก</button><button class="btn small" data-toggle-procedure="${esc(p.id)}">${p.active?'ปิด':'เปิด'}</button></div></div>`).join('');
+ $('procedureCatalogList').innerHTML=catalog.map(p=>window.EMS_PROC_V2?.renderProcedureCard(p)||'').join('');
+ window.EMS_PROC_V2?.renderAdmin();
 }
 function toggleCustom(){const other=$('certificateCourse').value==='__other__';$('customCourseField').hidden=!other;$('customCourse').required=other;if(!other)$('customCourse').value='';}
 function printTab(which){document.body.dataset.print=which;$('printDate').textContent=`พิมพ์เมื่อ ${new Date().toLocaleString('th-TH')} · ${esc(mine.first_name)} ${esc(mine.last_name)}`;setTimeout(()=>window.print(),60)}
@@ -394,7 +400,7 @@ $('otpResetForm').addEventListener('submit', async (e) => {
   }
 });
 
- async function logout(){if(window.EMS_EQUIPMENT)window.EMS_EQUIPMENT.onLogout();if(window.EMS_OPERATIONS)window.EMS_OPERATIONS.onLogout();if(window.EMS_ACTIVITIES)window.EMS_ACTIVITIES.onLogout();await sb.auth.signOut();current=null;mine=null;profiles=[];courses=[];catalog=[];certificates=[];logs=[];showAuthPanel();$('authCard').classList.remove('hidden');$('pendingCard').classList.add('hidden')}
+ async function logout(){if(window.EMS_PROC_V2)window.EMS_PROC_V2.onLogout();if(window.EMS_EQUIPMENT)window.EMS_EQUIPMENT.onLogout();if(window.EMS_OPERATIONS)window.EMS_OPERATIONS.onLogout();if(window.EMS_ACTIVITIES)window.EMS_ACTIVITIES.onLogout();await sb.auth.signOut();current=null;mine=null;profiles=[];courses=[];catalog=[];certificates=[];logs=[];showAuthPanel();$('authCard').classList.remove('hidden');$('pendingCard').classList.add('hidden')}
 
  $('logoutBtn').onclick=logout;$('pendingLogout').onclick=logout;$('checkApproval').onclick=load;$('refreshBtn').onclick=load;
  $('dashboardPersonFilter').addEventListener('change',render);
@@ -445,6 +451,7 @@ $('otpResetForm').addEventListener('submit', async (e) => {
   e.preventDefault();const btn=e.submitter;btn.disabled=true;
   try{
     if(!$('procedureChoice').value)throw Error('กรุณาเลือกหัตถการ');
+    if(!procEditId && !scopeAllows(catalog.find(p=>p.id===$('procedureChoice').value),mine))throw Error('ตำแหน่งหรือ Certificate ยังไม่เข้าเงื่อนไขหัตถการนี้');
     if(!$('performedOn').value)throw Error('กรุณาระบุวันที่ทำหัตถการ');
     const payload={procedure_id:$('procedureChoice').value,performed_on:$('performedOn').value,
       shift:$('performedShift').value,exposure_type:$('exposureType').value,outcome:$('performedOutcome').value};
@@ -522,8 +529,8 @@ async function downloadOwnCertificate(record,button){
  $('pendingRows').addEventListener('click',async e=>{const b=e.target.closest('[data-approval]');if(!b||!isAdmin())return;const p=profiles.find(x=>x.id===b.dataset.member);if(!p||!confirm(`${b.dataset.approval==='approved'?'อนุมัติ':'ไม่อนุมัติ'}บัญชี ${p.first_name} ${p.last_name} ใช่หรือไม่?`))return;b.disabled=true;try{const {error}=await sb.from('profiles').update({approval_status:b.dataset.approval,approved_by:mine.id,approved_at:b.dataset.approval==='approved'?new Date().toISOString():null}).eq('id',p.id);if(error)throw error;toast('อัปเดตสถานะสมาชิกแล้ว');await load();}catch(err){reportError(err)}finally{b.disabled=false}});
  $('addCourseForm').addEventListener('submit',async e=>{e.preventDefault();try{const {error}=await sb.from('certificate_courses').insert({name:$('newCourseName').value.trim()});if(error)throw error;e.target.reset();toast('เพิ่มหลักสูตรเรียบร้อย');await load();}catch(err){reportError(err)}});
  $('coursesList').addEventListener('click',async e=>{const b=e.target.closest('[data-course-toggle]');if(!b)return;const c=courses.find(x=>x.id===b.dataset.courseToggle);if(!c)return;try{const {error}=await sb.from('certificate_courses').update({active:!c.active}).eq('id',c.id);if(error)throw error;await load();}catch(err){reportError(err)}});
- $('addProcedureForm').addEventListener('submit',async e=>{e.preventDefault();try{const {error}=await sb.from('procedure_catalog').insert({name:$('newProcedureName').value.trim(),interval_days:Number($('newProcedureInterval').value),position_scope:$('newProcedureScope').value,count_simulation:$('newProcedureSimulation').checked});if(error)throw error;e.target.reset();toast('เพิ่มรายการหัตถการแล้ว');await load();}catch(err){reportError(err)}});
- $('procedureCatalogList').addEventListener('click',async e=>{const save=e.target.closest('[data-save-procedure]'),toggle=e.target.closest('[data-toggle-procedure]');if(!save&&!toggle)return;let p=catalog.find(x=>x.id===(save?.dataset.saveProcedure||toggle?.dataset.toggleProcedure));if(!p)return;try{let patch=toggle?{active:!p.active}:{interval_days:Number(document.querySelector(`[data-interval="${p.id}"]`).value),position_scope:document.querySelector(`[data-scope="${p.id}"]`).value,count_simulation:document.querySelector(`[data-sim="${p.id}"]`).checked};const {error}=await sb.from('procedure_catalog').update(patch).eq('id',p.id);if(error)throw error;toast('บันทึกการตั้งค่าหัตถการแล้ว');await load();}catch(err){reportError(err)}});
+ $('addProcedureForm').addEventListener('submit',async e=>{e.preventDefault();const btn=e.submitter;if(btn)btn.disabled=true;try{await window.EMS_PROC_V2.saveProcedure(null);e.target.reset();toast('เพิ่มหัตถการ V2 แล้ว');await load();}catch(err){reportError(err)}finally{if(btn)btn.disabled=false}});
+ $('procedureCatalogList').addEventListener('click',async e=>{const save=e.target.closest('[data-save-procedure]'),toggle=e.target.closest('[data-toggle-procedure]');if(!save&&!toggle)return;let p=catalog.find(x=>x.id===(save?.dataset.saveProcedure||toggle?.dataset.toggleProcedure));if(!p)return;const button=save||toggle;button.disabled=true;try{if(toggle){const {error}=await sb.from('procedure_catalog').update({active:!p.active}).eq('id',p.id);if(error)throw error;}else{await window.EMS_PROC_V2.saveProcedure(p.id,{active:p.active});}toast('บันทึกการตั้งค่าหัตถการแล้ว');await load();}catch(err){reportError(err)}finally{button.disabled=false}});
   $('myAvatarFile').addEventListener('change',()=>{
     const file=$('myAvatarFile').files[0];
     if(file)$('myAvatarStatus').textContent=`เลือกรูป: ${file.name} — กดอัปโหลดเพื่อบันทึก`;
