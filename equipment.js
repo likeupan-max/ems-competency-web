@@ -35,8 +35,20 @@
   const currentItems=ws=>items.filter(i=>i.workstation===ws&&i.active&&!i.is_placeholder).sort((a,b)=>a.sort_order-b.sort_order);
   const itemSnap=i=>({name:i.name,category:i.category,bag_group:i.bag_group,required_qty:i.required_qty,unit:i.unit,input_type:i.input_type,options:i.options,extra_fields:i.extra_fields,source_code:i.source_code,sort_order:i.sort_order});
   const escAttr=escapeHTML;
+  // Two-count mode is stored in the existing options JSON; old snapshots stay unchanged.
+  const STOCK_TWO='__stock_two_counts_v1';
+  const twoCount=snap=>snap.input_type==='stock'&&Array.isArray(snap.options)&&snap.options.includes(STOCK_TWO);
+  const whole=v=>v!=null&&/^[0-9]+$/.test(String(v))&&Number.isSafeInteger(Number(v));
+  const standardOK=v=>v!=null&&v!==''&&Number.isSafeInteger(Number(v))&&Number(v)>=0;
+  const prepare=(snap,closing)=>standardOK(snap.required_qty)&&whole(closing)?Math.max(0,Number(snap.required_qty)-Number(closing)):null;
+  const prepareLabel=(snap,closing)=>{const n=prepare(snap,closing);return n==null?'—':`${n}${snap.unit?' '+snap.unit:''}`;};
   function badge(v){if(!v)return '<span class="eq-chip eq-pending">รอตรวจ</span>';return `<span class="eq-chip ${statusClass[v]||'eq-neutral'}">${escapeHTML(v)}</span>`;}
   function renderAmount(snap,answer){ const typ=snap.input_type,val=answer||{};
+    if(twoCount(snap)){
+      const op=whole(val.opening)?val.opening:'—',cl=whole(val.closing)?val.closing:'—',need=prepare(snap,val.closing);
+      if(op==='—'&&cl==='—')return '<span class="eq-chip eq-pending">รอตรวจ</span>';
+      return `<span class="eq-chip ${op==='—'||cl==='—'||need==null?'eq-pending':need>0?'eq-warn':'eq-good'}">ต้นเวร ${escapeHTML(op)} · ปลายเวร ${escapeHTML(cl)} · ต้องเตรียม ${escapeHTML(prepareLabel(snap,val.closing))}</span>`;
+    }
     if(typ==='stock'){
       if(val.opening===''||val.opening==null||val.closing===''||val.closing==null)return '<span class="eq-chip eq-pending">รอตรวจ</span>';
       const op=Number(val.opening),cl=Number(val.closing),rec=Number(val.received||0),need=Math.max(0,Number(snap.required_qty||0)-cl);
@@ -108,6 +120,11 @@
     if(ty==='status'||ty==='binary'){
       const opts=ty==='status'?five:options;
       out=field('สถานะ',`<select data-eq-part="value" ${dis}><option value="">— เลือก —</option>${opts.map(op=>`<option value="${escAttr(op)}" ${op===v.value?'selected':''}>${escapeHTML(op)}</option>`).join('')}</select>`);
+    }else if(twoCount(snap)){
+      return `<div class="eq-stock-fields" style="grid-template-columns:repeat(auto-fit,minmax(100px,1fr))">
+       ${field('จำนวนต้นเวร',`<input type="number" min="0" step="1" inputmode="numeric" data-eq-part="opening" value="${escAttr(v.opening??'')}" ${dis}>`)}
+       ${field('จำนวนปลายเวร',`<input type="number" min="0" step="1" inputmode="numeric" data-eq-part="closing" value="${escAttr(v.closing??'')}" ${dis}>`)}
+      </div><div class="eq-stock-result" data-eq-stock-result aria-live="polite">จำนวนที่ต้องเตรียม: ${escapeHTML(prepareLabel(snap,v.closing))}</div>`;
     }else if(ty==='stock'){
       out=`<div class="eq-stock-fields">
        ${field('ต้นเวร',`<input type="number" min="0" step="1" data-eq-part="opening" value="${escAttr(v.opening??'')}" ${dis}>`)}
@@ -156,6 +173,10 @@
   function updateStock(row){const val=part=>row.querySelector(`[data-eq-part="${part}"]`)?.value??'';
     const node=row.querySelector('[data-eq-stock-result]');if(!node)return;
     const e=selectedEntries.find(x=>x.id===row.dataset.eqRow),i=items.find(x=>x.id===row.dataset.eqRow),snap=e?.item_snapshot||itemSnap(i||{});
+    if(twoCount(snap)){
+      node.textContent=standardOK(snap.required_qty)?`จำนวนที่ต้องเตรียม: ${prepareLabel(snap,val('closing'))}`:'กรุณาให้ Admin กำหนดจำนวนมาตรฐาน';
+      return;
+    }
     if(val('opening')===''||val('closing')===''){node.textContent='กรอกจำนวนต้นเวรและปลายเวร เพื่อคำนวณจำนวนที่ต้องเตรียม';return;}
     const op=Number(val('opening')),cl=Number(val('closing')),rec=Number(val('received')||0);
     if(cl>op+rec){node.textContent='จำนวนเหลือมากกว่าจำนวนต้นเวร + รับเพิ่ม กรุณาตรวจสอบ';return;}
@@ -205,13 +226,14 @@
   function readRow(row,snap){
     let answer={};
     if(snap.input_type==='stock'){
-      for(const part of ['opening','received','closing'])answer[part]=row.querySelector(`[data-eq-part="${part}"]`)?.value??'';
+      for(const part of (twoCount(snap)?['opening','closing']:['opening','received','closing']))answer[part]=row.querySelector(`[data-eq-part="${part}"]`)?.value??'';
     }else answer.value=row.querySelector('[data-eq-part="value"]')?.value??'';
     const fields={};row.querySelectorAll('[data-eq-extra]').forEach(el=>{fields[el.dataset.eqExtra]=el.value});if(Object.keys(fields).length)answer.fields=fields;
     return {answer,remark:row.querySelector('.eq-note')?.value.trim()||''};
   }
   function isComplete(snap,ans,remark){
     const t=snap.input_type,v=String(ans?.value??'').trim();
+    if(twoCount(snap))return standardOK(snap.required_qty)&&whole(ans?.opening)&&whole(ans?.closing);
     if(t==='stock'){
       const op=ans?.opening,cl=ans?.closing,rec=ans?.received??0;
       if(op===''||cl===''||op==null||cl==null||Number(op)<0||Number(cl)<0||Number(rec)<0||!Number.isFinite(Number(op))||!Number.isFinite(Number(cl))||Number(cl)>Number(op)+Number(rec))return false;
@@ -240,7 +262,7 @@
       const changes=[];let complete=0;
     for(const e of selectedEntries){
       const row=$e('eqCheckBody').querySelector(`[data-eq-row="${e.id}"]`);if(!row)continue;
-      const v=readRow(row,e.item_snapshot);if(isComplete(e.item_snapshot,v.answer,v.remark))complete++;
+      const v=readRow(row,e.item_snapshot);if(twoCount(e.item_snapshot)&&['opening','closing'].some(k=>v.answer[k]!==''&&!whole(v.answer[k])))throw Error('จำนวนต้นเวรและปลายเวรต้องเป็นจำนวนเต็มตั้งแต่ 0: '+e.item_snapshot.name);if(isComplete(e.item_snapshot,v.answer,v.remark))complete++;
       if(JSON.stringify(v.answer)!==JSON.stringify(e.answer||{})||v.remark!==(e.remark||'')){
         if(!hasInput(v.answer)&&!v.remark&&(JSON.stringify(e.answer||{})==='{}'))continue;
         changes.push({entry_id:e.id,...v});
@@ -329,8 +351,8 @@
   }
   function exportDashboard(){if(!currentDashboard)return;
     const {date,checks,entries}=currentDashboard, byId=new Map(checks.map(c=>[c.id,c]));
-    const rows=[['วันที่','จุด','เวร','รายการ','จำนวนต้องมี','ประเภทข้อมูล','ค่าที่บันทึก','หมายเหตุ','ผู้ OK','เวลาบันทึก/เริ่มตรวจ','สถานะ','แก้ไขล่าสุด','ผู้แก้ไข']];
-    for(const e of entries){const c=byId.get(e.check_id);if(!c)continue;rows.push([date,stations.find(s=>s.code===c.workstation)?.display_name,c.shift,e.item_snapshot.name,e.item_snapshot.required_qty,e.item_snapshot.input_type,JSON.stringify(e.answer||{}),e.remark,c.submitted_by_name||c.checked_by_name||'—',timeThai(c.submitted_at||c.updated_at||c.created_at),c.status==='submitted'?'บันทึกครบ':'กำลังตรวจ',timeThai(e.updated_at),e.updated_by_name]);}
+    const rows=[['วันที่','จุด','เวร','รายการ','จำนวนต้องมี','ประเภทข้อมูล','ค่าที่บันทึก','จำนวนที่ต้องเตรียม (แบบสองช่อง)','หมายเหตุ','ผู้ OK','เวลาบันทึก/เริ่มตรวจ','สถานะ','แก้ไขล่าสุด','ผู้แก้ไข']];
+    for(const e of entries){const c=byId.get(e.check_id);if(!c)continue;rows.push([date,stations.find(s=>s.code===c.workstation)?.display_name,c.shift,e.item_snapshot.name,e.item_snapshot.required_qty,e.item_snapshot.input_type,JSON.stringify(e.answer||{}),twoCount(e.item_snapshot)?prepare(e.item_snapshot,e.answer?.closing)??'':'',e.remark,c.submitted_by_name||c.checked_by_name||'—',timeThai(c.submitted_at||c.updated_at||c.created_at),c.status==='submitted'?'บันทึกครบ':'กำลังตรวจ',timeThai(e.updated_at),e.updated_by_name]);}
     csv(rows,`EMS-Equipment-${date}.csv`);
   }
   function printEquipment(mode){
@@ -346,17 +368,26 @@
     document.body.dataset.print='equipment';setTimeout(()=>window.print(),80);
   }
   function adminFields(){
-    const types=[['status','Dropdown สถานะ'],['date','วันที่'],['text','ข้อความ'],['number','ตัวเลข'],['binary','ตัวเลือกกำหนดเอง'],['stock','สต็อกต้น/ปลายเวร']];
+    const types=[['status','Dropdown สถานะ'],['date','วันที่'],['text','ข้อความ'],['number','ตัวเลข'],['binary','ตัวเลือกกำหนดเอง'],['stock_two','นับสต็อกต้นเวร / ปลายเวร (คำนวณจำนวนเตรียม)'],['stock','สต็อกแบบเดิม (มีรับเพิ่ม)']];
     $e('eqAdminType').innerHTML=types.map(x=>`<option value="${x[0]}">${x[1]}</option>`).join('');
   }
-  function resetAdmin(){$e('eqAdminAdvanced').open=false;editingItemId=null;$e('eqAdminForm').reset();$e('eqAdminHeading').textContent='เพิ่มรายการอุปกรณ์';$e('eqAdminActive').checked=true;$e('eqAdminRequired').value='';$e('eqAdminExtra').value='[]';}
-  function fillAdmin(i){$e('eqAdminAdvanced').open=true;editingItemId=i.id;$e('eqAdminHeading').textContent='แก้ไขรายการอุปกรณ์';$e('eqAdminStation').value=i.workstation;$e('eqAdminName').value=i.name;$e('eqAdminCategory').value=i.category;$e('eqAdminGroup').value=i.bag_group;$e('eqAdminRequired').value=i.required_qty??'';$e('eqAdminUnit').value=i.unit;$e('eqAdminType').value=i.input_type;$e('eqAdminChoices').value=(i.options||[]).join(', ');$e('eqAdminExtra').value=JSON.stringify(i.extra_fields||[],null,2);$e('eqAdminGuidance').value=i.guidance||'';$e('eqAdminOrder').value=i.sort_order;$e('eqAdminActive').checked=i.active;$e('eqAdminPlaceholder').checked=i.is_placeholder;tab('equipmentAdmin');$e('eqAdminForm').scrollIntoView({behavior:'smooth'});}
+  function updateAdminStockMode(){
+    const simple=$e('eqAdminType').value==='stock_two';
+    const qty=$e('eqAdminRequired');qty.required=simple;qty.step=simple?'1':'any';qty.placeholder=simple?'ระบุจำนวนมาตรฐาน':'เว้นว่างได้';
+    for(const id of ['eqAdminChoices','eqAdminExtra']){
+      const el=$e(id);el.disabled=simple;const wrap=el.closest('label');if(wrap){wrap.hidden=simple;wrap.style.display=simple?'none':'';}
+    }
+    let hint=$e('eqAdminStockHint');if(!hint){hint=document.createElement('p');hint.id='eqAdminStockHint';hint.className='muted';$e('eqAdminType').closest('label').after(hint);}
+    hint.hidden=!simple;hint.textContent='กรอกจำนวนมาตรฐานและหน่วยนับ เจ้าหน้าที่กรอกต้นเวร/ปลายเวรเท่านั้น ระบบคำนวณจำนวนที่ต้องเตรียม ช่องเพิ่มเติมจะไม่ใช้ในรูปแบบนี้';
+  }
+  function resetAdmin(){$e('eqAdminAdvanced').open=false;editingItemId=null;$e('eqAdminForm').reset();$e('eqAdminHeading').textContent='เพิ่มรายการอุปกรณ์';$e('eqAdminActive').checked=true;$e('eqAdminRequired').value='';$e('eqAdminExtra').value='[]';updateAdminStockMode();}
+  function fillAdmin(i){$e('eqAdminAdvanced').open=true;editingItemId=i.id;$e('eqAdminHeading').textContent='แก้ไขรายการอุปกรณ์';$e('eqAdminStation').value=i.workstation;$e('eqAdminName').value=i.name;$e('eqAdminCategory').value=i.category;$e('eqAdminGroup').value=i.bag_group;$e('eqAdminRequired').value=i.required_qty??'';$e('eqAdminUnit').value=i.unit;$e('eqAdminType').value=twoCount(i)?'stock_two':i.input_type;$e('eqAdminChoices').value=(i.options||[]).filter(x=>x!==STOCK_TWO).join(', ');$e('eqAdminExtra').value=JSON.stringify(i.extra_fields||[],null,2);$e('eqAdminGuidance').value=i.guidance||'';$e('eqAdminOrder').value=i.sort_order;$e('eqAdminActive').checked=i.active;$e('eqAdminPlaceholder').checked=i.is_placeholder;updateAdminStockMode();tab('equipmentAdmin');$e('eqAdminForm').scrollIntoView({behavior:'smooth'});}
   function renderAdmin(){
     if(!admin())return;
     const ws=$e('eqAdminFilter')?.value||'all';
     const match=items.filter(i=>ws==='all'||i.workstation===ws);
     $e('eqAdminFilter').innerHTML='<option value="all">ทุกตำแหน่ง</option>'+stations.map(s=>`<option value="${s.code}" ${ws===s.code?'selected':''}>${escapeHTML(s.display_name)}</option>`).join('');
-    $e('eqAdminList').innerHTML=`<div class="tablewrap"><table><thead><tr><th>ตำแหน่ง</th><th>รายการ / หมวด</th><th>จำนวน</th><th>ช่องกรอก</th><th>สถานะ</th><th>จัดการ</th></tr></thead><tbody>${match.map(i=>`<tr><td>${escapeHTML(stations.find(s=>s.code===i.workstation)?.display_name||i.workstation)}</td><td>${escapeHTML(i.name)}<small>${escapeHTML(i.category||'')} ${escapeHTML(i.bag_group||'')}</small></td><td>${i.required_qty??'—'} ${escapeHTML(i.unit||'')}</td><td>${escapeHTML(i.input_type)}</td><td>${i.active?'ใช้งาน':'ปิดใช้งาน'}</td><td><button type="button" class="btn small" data-eq-edit="${i.id}">แก้ไข</button> <button type="button" class="btn small" data-eq-delete="${i.id}" style="color:#b42318;border-color:#f4b5af">ลบ</button></td></tr>`).join('')}</tbody></table></div>`;
+    $e('eqAdminList').innerHTML=`<div class="tablewrap"><table><thead><tr><th>ตำแหน่ง</th><th>รายการ / หมวด</th><th>จำนวน</th><th>ช่องกรอก</th><th>สถานะ</th><th>จัดการ</th></tr></thead><tbody>${match.map(i=>`<tr><td>${escapeHTML(stations.find(s=>s.code===i.workstation)?.display_name||i.workstation)}</td><td>${escapeHTML(i.name)}<small>${escapeHTML(i.category||'')} ${escapeHTML(i.bag_group||'')}</small></td><td>${i.required_qty??'—'} ${escapeHTML(i.unit||'')}</td><td>${escapeHTML(twoCount(i)?'ต้นเวร / ปลายเวร + คำนวณเตรียม':i.input_type)}</td><td>${i.active?'ใช้งาน':'ปิดใช้งาน'}</td><td><button type="button" class="btn small" data-eq-edit="${i.id}">แก้ไข</button> <button type="button" class="btn small" data-eq-delete="${i.id}" style="color:#b42318;border-color:#f4b5af">ลบ</button></td></tr>`).join('')}</tbody></table></div>`;
   }
   async function deleteAdminItem(i){
     if(!admin())throw Error('เฉพาะ Admin เท่านั้น');
@@ -370,14 +401,16 @@
     notify('ลบรายการแล้ว');if(editingItemId===i.id)resetAdmin();await reloadTemplates();await loadDashboard();
   }
   async function submitAdmin(e){e.preventDefault();if(!admin())throw Error('เฉพาะ Admin');
-    let extras;try{extras=JSON.parse($e('eqAdminExtra').value||'[]');if(!Array.isArray(extras))throw Error('ต้องเป็น array');}catch(_){throw Error('Extra Fields ต้องเป็น JSON array ที่ถูกต้อง')}
+    const simple=$e('eqAdminType').value==='stock_two';
+    let extras;try{extras=simple?[]:JSON.parse($e('eqAdminExtra').value||'[]');if(!Array.isArray(extras))throw Error('ต้องเป็น array');}catch(_){throw Error('Extra Fields ต้องเป็น JSON array ที่ถูกต้อง')}
     const payload={workstation:$e('eqAdminStation').value,name:$e('eqAdminName').value.trim(),category:$e('eqAdminCategory').value.trim()||'ทั่วไป',bag_group:$e('eqAdminGroup').value.trim(),required_qty:$e('eqAdminRequired').value===''?null:Number($e('eqAdminRequired').value),unit:$e('eqAdminUnit').value.trim(),input_type:$e('eqAdminType').value,options:$e('eqAdminChoices').value.split(',').map(x=>x.trim()).filter(Boolean),extra_fields:extras,guidance:$e('eqAdminGuidance').value.trim(),sort_order:Number($e('eqAdminOrder').value||0),active:$e('eqAdminActive').checked,is_placeholder:$e('eqAdminPlaceholder').checked};
+    if(simple){if(!standardOK(payload.required_qty))throw Error('กรอกจำนวนมาตรฐานเป็นจำนวนเต็มตั้งแต่ 0');payload.input_type='stock';payload.options=[STOCK_TWO];payload.extra_fields=[];}
     if(!payload.name)throw Error('กรอกชื่อรายการ');if(payload.input_type==='binary'&&!payload.options.length)throw Error('กรอกตัวเลือกสำหรับ Dropdown เช่น พอใช้,ไม่พอใช้');
     const result=editingItemId?await db().from('equipment_items').update(payload).eq('id',editingItemId):await db().from('equipment_items').insert(payload);
     if(result.error)throw result.error;notify(editingItemId?'แก้ไขรายการแล้ว':'เพิ่มรายการแล้ว');resetAdmin();await reloadTemplates();await loadDashboard();
   }
   function installHandlers(){if(initDone)return;initDone=true;
-    adminFields();$e('eqCheckStation').addEventListener('change',()=>{updateAllowedShifts();loadChecklist().catch(error)});
+    adminFields();updateAdminStockMode();$e('eqAdminType').addEventListener('change',updateAdminStockMode);$e('eqCheckStation').addEventListener('change',()=>{updateAllowedShifts();loadChecklist().catch(error)});
     for(const id of ['eqCheckDate','eqCheckShift'])$e(id).addEventListener('change',()=>loadChecklist().catch(error));
     $e('eqDashDate').addEventListener('change',()=>loadDashboard().catch(error));
     $e('eqDashToday').addEventListener('click',()=>{$e('eqDashDate').value=bkkDate();loadDashboard().catch(error)});
